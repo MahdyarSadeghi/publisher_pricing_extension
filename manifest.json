@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Publisher Pricing Analyzer",
-  "version": "1.0.0",
-  "description": "Scan Yektanet ad positions on publisher pages and display average RPM from historical data.",
+  "version": "1.1.0",
+  "description": "تحلیل RPM موقعیت‌های تبلیغاتی یکتانت بر اساس داده‌های تاریخی",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -18,7 +18,10 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["sidebar.html", "sidebar.js", "sidebar.css", "libs/xlsx.min.js", "data/publisher_data.xlsx"],
+      "resources": [
+        "sidebar.html", "sidebar.js", "sidebar.css",
+        "libs/xlsx.min.js", "data/publisher_data.xlsx"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
