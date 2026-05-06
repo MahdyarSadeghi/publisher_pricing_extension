@@ -2,14 +2,13 @@
   "use strict";
 
   // State
-  let workbookData = null; // Array of row objects from Excel
-  let scanResult = null;   // { appId, positionIds, pageUrl, pageTitle }
+  let workbookData = null;
+  let scanResult = null;
 
   // DOM refs
   const closeBtn = document.getElementById("close-btn");
-  const excelFileInput = document.getElementById("excel-file");
   const fileStatus = document.getElementById("file-status");
-  const uploadText = document.getElementById("upload-text");
+  const uploadSection = document.getElementById("upload-section");
   const statusMsg = document.getElementById("status-msg");
   const statusSection = document.getElementById("status-section");
   const pageInfoSection = document.getElementById("page-info");
@@ -28,33 +27,38 @@
     window.parent.postMessage({ type: "CLOSE_SIDEBAR" }, "*");
   });
 
+  // Auto-load bundled Excel on startup
+  async function loadBundledData() {
+    try {
+      setStatus("در حال بارگذاری داده‌ها...", "info");
+      const url = chrome.runtime.getURL("data/publisher_data.xlsx");
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("فایل داده یافت نشد");
+      const arrayBuffer = await response.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      workbookData = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+      fileStatus.textContent = `✓ ${workbookData.length} ردیف بارگذاری شد`;
+      fileStatus.className = "file-status success";
+      // Hide manual upload UI since data is bundled
+      uploadSection.classList.add("hidden");
+      setStatus("داده‌ها آماده است. در انتظار اسکن صفحه...", "info");
+      maybeRunAnalysis();
+    } catch (err) {
+      fileStatus.textContent = `خطا در بارگذاری داده: ${err.message}`;
+      fileStatus.className = "file-status error";
+      setStatus("خطا در بارگذاری فایل داده.", "error");
+    }
+  }
+
   // Receive scan result from content script
   window.addEventListener("message", (event) => {
     if (event.data && event.data.type === "SCAN_RESULT") {
       scanResult = event.data;
       renderPageInfo();
       maybeRunAnalysis();
-    }
-  });
-
-  // Excel file upload
-  excelFileInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    uploadText.textContent = file.name;
-    fileStatus.textContent = "در حال پردازش...";
-    fileStatus.className = "file-status";
-
-    try {
-      workbookData = await parseExcel(file);
-      fileStatus.textContent = `✓ ${workbookData.length} ردیف بارگذاری شد`;
-      fileStatus.className = "file-status success";
-      maybeRunAnalysis();
-    } catch (err) {
-      fileStatus.textContent = `خطا: ${err.message}`;
-      fileStatus.className = "file-status error";
-      workbookData = null;
     }
   });
 
@@ -75,22 +79,13 @@
     pageInfoSection.classList.remove("hidden");
 
     if (!scanResult.appId) {
-      setStatus(
-        "این صفحه اسکریپت یکتانت ندارد یا App ID شناسایی نشد.",
-        "warning"
-      );
+      setStatus("این صفحه اسکریپت یکتانت ندارد یا App ID شناسایی نشد.", "warning");
     } else if (scanResult.positionIds.length === 0) {
-      setStatus(
-        "App ID یافت شد اما هیچ موقعیت تبلیغاتی (ynpos-XXXX) در صفحه پیدا نشد.",
-        "warning"
-      );
+      setStatus("App ID یافت شد اما هیچ موقعیت تبلیغاتی (ynpos-XXXX) در صفحه پیدا نشد.", "warning");
+    } else if (workbookData) {
+      setStatus("در حال تحلیل داده‌ها...", "info");
     } else {
-      setStatus(
-        workbookData
-          ? "در حال تحلیل داده‌ها..."
-          : "فایل Excel را بارگذاری کنید تا RPM محاسبه شود.",
-        "info"
-      );
+      setStatus("در انتظار بارگذاری داده‌ها...", "info");
     }
   }
 
@@ -98,17 +93,13 @@
     if (!workbookData || !scanResult) return;
     if (!scanResult.appId) return;
     if (scanResult.positionIds.length === 0) return;
-
     runAnalysis();
   }
 
   function runAnalysis() {
     const { appId, positionIds } = scanResult;
-
-    // Find publisher_id(s) matching this appId via app_id / yektanet_id column
     const publisherIds = findPublisherIdsByAppId(appId);
 
-    // Compute RPM per position
     const matched = [];
     const unmatched = [];
 
@@ -148,8 +139,9 @@
   function findPublisherIdsByAppId(appId) {
     const ids = new Set();
     workbookData.forEach((row) => {
-      const rowAppId =
-        String(row["app_id"] || row["yektanet_id"] || row["appid"] || "").trim();
+      const rowAppId = String(
+        row["app_id"] || row["yektanet_id"] || row["appid"] || ""
+      ).trim();
       if (rowAppId && rowAppId === appId) {
         const pubId = String(row["publisher_id"] || "").trim();
         if (pubId) ids.add(pubId);
@@ -159,12 +151,8 @@
   }
 
   function calculateAverageRpm(rows) {
-    // RPM = total_adv_cost / page_views, averaged across rows
-    const valid = rows.filter(
-      (r) => toNum(r["page_views"]) > 0
-    );
+    const valid = rows.filter((r) => toNum(r["page_views"]) > 0);
     if (valid.length === 0) return null;
-
     const totalRpm = valid.reduce(
       (sum, r) => sum + toNum(r["total_adv_cost"]) / toNum(r["page_views"]),
       0
@@ -182,13 +170,11 @@
       return;
     }
 
-    // Show publisher name if available
     if (matched.length > 0 && matched[0].publisherName) {
       publisherNameEl.textContent = matched[0].publisherName;
       publisherInfo.classList.remove("hidden");
     }
 
-    // Matched positions with RPM
     matched.forEach((item) => {
       const card = document.createElement("div");
       card.className = "result-card";
@@ -218,12 +204,10 @@
       resultsList.appendChild(card);
     });
 
-    // Unmatched positions
     if (unmatched.length > 0) {
       const unmatchedHeader = document.createElement("p");
-      unmatchedHeader.style.cssText =
-        "font-size:11px;color:#adb5bd;margin:12px 0 6px;";
-      unmatchedHeader.textContent = "موقعیت‌های بدون داده در فایل Excel:";
+      unmatchedHeader.style.cssText = "font-size:11px;color:#adb5bd;margin:12px 0 6px;";
+      unmatchedHeader.textContent = "موقعیت‌های بدون داده در فایل:";
       resultsList.appendChild(unmatchedHeader);
 
       unmatched.forEach((posId) => {
@@ -248,13 +232,10 @@
       noDataSection.classList.remove("hidden");
       debugInfo.innerHTML =
         `App ID روی صفحه: <strong>${scanResult.appId}</strong><br>` +
-        `Publisher IDs یافت‌شده از Excel: <strong>${publisherIds.length > 0 ? publisherIds.join(", ") : "هیچ"}</strong><br>` +
+        `Publisher IDs یافت‌شده: <strong>${publisherIds.length > 0 ? publisherIds.join(", ") : "هیچ"}</strong><br>` +
         `موقعیت‌های روی صفحه: <strong>${scanResult.positionIds.join(", ")}</strong><br>` +
-        `<br>مطمئن شوید ستون <code>app_id</code> یا <code>yektanet_id</code> در Excel موجود است و مقدار <strong>${scanResult.appId}</strong> را دارد.`;
-      setStatus(
-        "App ID در Excel پیدا نشد. راهنمایی را در پایین ببینید.",
-        "warning"
-      );
+        `<br>مطمئن شوید ستون <code>app_id</code> در فایل داده مقدار <strong>${scanResult.appId}</strong> را دارد.`;
+      setStatus("App ID در داده‌ها پیدا نشد.", "warning");
     }
   }
 
@@ -264,31 +245,11 @@
     statusSection.classList.remove("hidden");
   }
 
-  async function parseExcel(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json(sheet, {
-            defval: "",
-            raw: false,
-          });
-          resolve(rows);
-        } catch (err) {
-          reject(new Error("خطا در خواندن فایل Excel: " + err.message));
-        }
-      };
-      reader.onerror = () => reject(new Error("خطا در بارگذاری فایل"));
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
   function toNum(val) {
     const n = parseFloat(String(val || "0").replace(/,/g, ""));
     return isNaN(n) ? 0 : n;
   }
+
+  // Start by loading bundled data
+  loadBundledData();
 })();
