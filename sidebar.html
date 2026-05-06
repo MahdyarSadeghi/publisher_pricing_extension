@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Publisher Pricing Analyzer</title>
+  <link rel="stylesheet" href="sidebar.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-title">
+        <span class="logo">📊</span>
+        <h1>تحلیل قیمت پابلیشر</h1>
+      </div>
+      <button id="close-btn" title="بستن">✕</button>
+    </header>
+
+    <div id="page-info" class="section hidden">
+      <div class="info-row">
+        <span class="label">آدرس:</span>
+        <span id="page-url" class="value truncate"></span>
+      </div>
+      <div class="info-row">
+        <span class="label">App ID:</span>
+        <span id="app-id" class="value mono"></span>
+      </div>
+      <div class="info-row">
+        <span class="label">موقعیت‌های یافت‌شده:</span>
+        <span id="position-count" class="value badge"></span>
+      </div>
+    </div>
+
+    <div id="upload-section" class="section">
+      <p class="hint">فایل Excel داده‌های تاریخی را بارگذاری کنید:</p>
+      <label class="upload-label" for="excel-file">
+        <span id="upload-text">انتخاب فایل Excel</span>
+        <input type="file" id="excel-file" accept=".xlsx,.xls" />
+      </label>
+      <p id="file-status" class="file-status"></p>
+    </div>
+
+    <div id="status-section" class="section">
+      <div id="status-msg" class="status-msg info">
+        در انتظار بارگذاری داده و اسکن صفحه...
+      </div>
+    </div>
+
+    <div id="results-section" class="section hidden">
+      <h2>نتایج RPM</h2>
+      <div id="publisher-info" class="publisher-info hidden">
+        <span class="label">پابلیشر:</span>
+        <span id="publisher-name" class="value"></span>
+      </div>
+      <div id="results-list"></div>
+    </div>
+
+    <div id="no-data-section" class="section hidden">
+      <div class="status-msg warning">
+        <strong>داده‌ای یافت نشد</strong><br />
+        هیچ موقعیت تطابق‌یافته‌ای در فایل Excel پیدا نشد.
+      </div>
+      <div id="debug-info" class="debug-info"></div>
+    </div>
+  </div>
+
+  <script src="libs/xlsx.min.js"></script>
+  <script src="sidebar.js"></script>
+</body>
+</html>

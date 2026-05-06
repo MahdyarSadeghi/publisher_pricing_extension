@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Publisher Pricing Analyzer",
+  "version": "1.0.0",
+  "description": "Scan Yektanet ad positions on publisher pages and display average RPM from historical data.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Publisher Pricing Analyzer",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html", "sidebar.js", "sidebar.css", "libs/xlsx.min.js", "data/publisher_data.xlsx"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
