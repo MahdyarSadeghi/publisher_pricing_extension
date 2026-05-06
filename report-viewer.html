@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>گزارش تحلیل ناشر</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Tahoma, Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; direction: rtl; }
+
+    /* Header */
+    .report-header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .report-header h1 { font-size: 18px; font-weight: 700; }
+    .header-meta { font-size: 13px; opacity: .75; }
+    .header-meta span { margin-left: 16px; }
+    .total-rpm-pill {
+      background: #69f0ae;
+      color: #1a1a2e;
+      font-size: 22px;
+      font-weight: 800;
+      padding: 6px 18px;
+      border-radius: 20px;
+      direction: ltr;
+    }
+
+    /* Grid */
+    .positions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+      padding: 24px 32px;
+    }
+
+    /* Card */
+    .pos-card {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s;
+      border: 2px solid transparent;
+    }
+    .pos-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.14); }
+    .pos-card.no-data { opacity: .55; cursor: default; }
+
+    .card-screenshot {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      background: #eceff1;
+    }
+    .card-screenshot.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: #cfd8dc;
+    }
+
+    .card-body { padding: 14px 16px; }
+    .card-posid {
+      font-family: monospace;
+      font-size: 12px;
+      background: #eceff1;
+      color: #37474f;
+      padding: 3px 8px;
+      border-radius: 5px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+    .card-desc { font-size: 12px; color: #607d8b; margin-bottom: 10px; line-height: 1.4; min-height: 18px; }
+    .card-rpm {
+      font-size: 34px;
+      font-weight: 800;
+      color: #3949ab;
+      direction: ltr;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .card-rpm.na { font-size: 18px; color: #b0bec5; }
+    .card-rpm-label { font-size: 10px; color: #90a4ae; }
+    .card-footer {
+      display: flex;
+      gap: 10px;
+      font-size: 10px;
+      color: #90a4ae;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f5f5f5;
+      flex-wrap: wrap;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 14px;
+      max-width: 800px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .modal-header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: 14px 14px 0 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .modal-header h2 { font-size: 15px; }
+    .modal-close {
+      background: rgba(255,255,255,.15);
+      border: none;
+      color: #fff;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-close:hover { background: rgba(255,255,255,.3); }
+    .modal-body { padding: 20px; }
+    .modal-screenshot {
+      width: 100%;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid #e0e0e0;
+    }
+    .modal-rpm {
+      font-size: 48px;
+      font-weight: 800;
+      color: #3949ab;
+      direction: ltr;
+      margin-bottom: 4px;
+    }
+    .modal-rpm-label { font-size: 12px; color: #90a4ae; margin-bottom: 20px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-box {
+      background: #f5f6fa;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .stat-label { font-size: 11px; color: #90a4ae; margin-bottom: 4px; }
+    .stat-value { font-size: 16px; font-weight: 600; color: #1a1a2e; direction: ltr; }
+
+    /* Loading */
+    #loading { padding: 60px; text-align: center; color: #90a4ae; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div id="loading">در حال بارگذاری گزارش...</div>
+  <div id="root"></div>
+
+  <!-- Modal -->
+  <div id="modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 id="modal-title">جزئیات موقعیت</h2>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    var reportData = null;
+
+    chrome.storage.local.get("ynprice_report", function (result) {
+      document.getElementById("loading").style.display = "none";
+      if (!result.ynprice_report) {
+        document.getElementById("root").innerHTML = '<p style="padding:40px;color:#e53935;">گزارشی یافت نشد. لطفاً دوباره از اکستنشن گزارش بگیرید.</p>';
+        return;
+      }
+      reportData = result.ynprice_report;
+      renderReport(reportData);
+    });
+
+    function fmtDate(iso) {
+      // Convert YYYY-MM-DD to readable Persian date label
+      return iso ? iso.replace(/-/g, "/") : "";
+    }
+
+    function renderReport(data) {
+      var root = document.getElementById("root");
+
+      // Header
+      var hdr = document.createElement("div");
+      hdr.className = "report-header";
+      hdr.innerHTML =
+        '<div>' +
+          '<h1>📊 گزارش تحلیل ناشر</h1>' +
+          (data.publisherName ? '<div style="opacity:.75;margin-top:4px;">' + data.publisherName + '</div>' : '') +
+        '</div>' +
+        '<div class="header-meta">' +
+          '<span>📅 ' + fmtDate(data.from) + ' تا ' + fmtDate(data.to) + '</span>' +
+          '<span>App ID: ' + data.appId + '</span>' +
+        '</div>' +
+        '<div>' +
+          '<div style="font-size:11px;opacity:.6;text-align:center;margin-bottom:4px;">RPM کل</div>' +
+          '<div class="total-rpm-pill">' + (data.totalRpm !== null ? data.totalRpm.toFixed(4) : "N/A") + '</div>' +
+        '</div>';
+      root.appendChild(hdr);
+
+      // Grid
+      var grid = document.createElement("div");
+      grid.className = "positions-grid";
+
+      data.matched.forEach(function (item, idx) {
+        var card = document.createElement("div");
+        card.className = "pos-card";
+        card.onclick = function () { openModal(idx); };
+
+        var screenshotHtml;
+        if (item.screenshot) {
+          screenshotHtml = '<img class="card-screenshot" src="' + item.screenshot + '" alt="screenshot" loading="lazy" />';
+        } else {
+          screenshotHtml = '<div class="card-screenshot placeholder">📷</div>';
+        }
+
+        card.innerHTML =
+          screenshotHtml +
+          '<div class="card-body">' +
+            '<span class="card-posid">ynpos-' + item.positionId + '</span>' +
+            '<div class="card-desc">' + (item.description || "") + '</div>' +
+            '<div class="' + (item.rpm !== null ? 'card-rpm' : 'card-rpm na') + '">' +
+              (item.rpm !== null ? item.rpm.toFixed(4) : "بدون داده") +
+            '</div>' +
+            '<div class="card-rpm-label">میانگین RPM</div>' +
+            '<div class="card-footer">' +
+              '<span>📅 ' + item.rowCount + ' روز</span>' +
+              '<span>💰 ' + Math.round(item.totalAdv).toLocaleString() + '</span>' +
+              (item.positionType ? '<span>🏷️ ' + item.positionType + '</span>' : '') +
+            '</div>' +
+          '</div>';
+        grid.appendChild(card);
+      });
+
+      if (data.unmatched && data.unmatched.length) {
+        data.unmatched.forEach(function (posId) {
+          var card = document.createElement("div");
+          card.className = "pos-card no-data";
+          card.innerHTML =
+            '<div class="card-screenshot placeholder">—</div>' +
+            '<div class="card-body">' +
+              '<span class="card-posid">ynpos-' + posId + '</span>' +
+              '<div class="card-rpm na">بدون داده</div>' +
+            '</div>';
+          grid.appendChild(card);
+        });
+      }
+
+      root.appendChild(grid);
+    }
+
+    function openModal(idx) {
+      var item = reportData.matched[idx];
+      document.getElementById("modal-title").textContent = "ynpos-" + item.positionId;
+
+      var body = document.getElementById("modal-body");
+      body.innerHTML =
+        (item.screenshot
+          ? '<img class="modal-screenshot" src="' + item.screenshot + '" />'
+          : '<div style="background:#f5f5f5;border-radius:8px;height:200px;display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:20px;">📷</div>') +
+        '<div class="modal-rpm">' + (item.rpm !== null ? item.rpm.toFixed(4) : "N/A") + '</div>' +
+        '<div class="modal-rpm-label">میانگین RPM (هزینه تبلیغات ÷ بازدید صفحه)</div>' +
+        '<div class="stats-grid">' +
+          '<div class="stat-box"><div class="stat-label">توضیحات</div><div class="stat-value" style="font-size:13px;">' + (item.description || "—") + '</div></div>' +
+          '<div class="stat-box"><div class="stat-label">نوع موقعیت</div><div class="stat-value" style="font-size:13px;">' + (item.positionType || "—") + '</div></div>' +
+          '<div class="stat-box"><div class="stat-label">تعداد روزهای داده</div><div class="stat-value">' + item.rowCount + '</div></div>' +
+          '<div class="stat-box"><div class="stat-label">مجموع هزینه تبلیغات</div><div class="stat-value">' + Math.round(item.totalAdv).toLocaleString() + '</div></div>' +
+          '<div class="stat-box"><div class="stat-label">مجموع بازدید صفحه</div><div class="stat-value">' + Math.round(item.totalPv).toLocaleString() + '</div></div>' +
+          '<div class="stat-box"><div class="stat-label">میانگین روزانه PV</div><div class="stat-value">' + Math.round(item.totalPv / Math.max(item.rowCount, 1)).toLocaleString() + '</div></div>' +
+        '</div>';
+
+      document.getElementById("modal").classList.add("open");
+    }
+
+    function closeModal() {
+      document.getElementById("modal").classList.remove("open");
+    }
+
+    document.getElementById("modal").addEventListener("click", function (e) {
+      if (e.target === this) closeModal();
+    });
+  </script>
+</body>
+</html>

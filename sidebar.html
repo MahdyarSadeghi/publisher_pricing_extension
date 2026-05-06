@@ -2,61 +2,60 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Publisher Pricing Analyzer</title>
   <link rel="stylesheet" href="sidebar.css" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <div class="header-title">
-        <span class="logo">📊</span>
-        <h1>تحلیل قیمت پابلیشر</h1>
-      </div>
-      <button id="close-btn" title="بستن">✕</button>
-    </header>
+  <header>
+    <span class="logo-title">📊 تحلیل قیمت ناشر</span>
+    <button id="close-btn" title="بستن">✕</button>
+  </header>
 
-    <div id="page-info" class="section hidden">
-      <div class="info-row">
-        <span class="label">آدرس:</span>
-        <span id="page-url" class="value truncate"></span>
-      </div>
-      <div class="info-row">
-        <span class="label">App ID:</span>
-        <span id="app-id" class="value mono"></span>
-      </div>
-      <div class="info-row">
-        <span class="label">موقعیت‌های یافت‌شده:</span>
-        <span id="position-count" class="value badge"></span>
+  <!-- Page info (appears after scan) -->
+  <div id="page-info" class="info-bar hidden">
+    <span id="page-host" class="host"></span>
+    <span id="app-id-badge" class="app-badge"></span>
+  </div>
+
+  <!-- Step 1: Date range -->
+  <div class="section">
+    <div id="data-status" class="data-status loading">در حال بارگذاری داده‌ها...</div>
+    <div class="date-group">
+      <label>از تاریخ</label>
+      <div class="date-row">
+        <select id="from-year" class="sel-year"></select>
+        <select id="from-month" class="sel-month"></select>
+        <select id="from-day" class="sel-day"></select>
       </div>
     </div>
-
-    <div id="upload-section" class="section">
-      <p id="file-status" class="file-status"></p>
-    </div>
-
-    <div id="status-section" class="section">
-      <div id="status-msg" class="status-msg info">
-        در انتظار بارگذاری داده و اسکن صفحه...
+    <div class="date-group">
+      <label>تا تاریخ</label>
+      <div class="date-row">
+        <select id="to-year" class="sel-year"></select>
+        <select id="to-month" class="sel-month"></select>
+        <select id="to-day" class="sel-day"></select>
       </div>
     </div>
+    <button id="analyze-btn" disabled>آنالیز کن</button>
+  </div>
 
-    <div id="results-section" class="section hidden">
-      <h2>نتایج RPM</h2>
-      <div id="publisher-info" class="publisher-info hidden">
-        <span class="label">پابلیشر:</span>
-        <span id="publisher-name" class="value"></span>
-      </div>
-      <div id="results-list"></div>
+  <!-- Results -->
+  <div id="results-section" class="hidden">
+    <div class="total-rpm-card">
+      <div class="total-rpm-label">RPM کل ناشر</div>
+      <div id="total-rpm" class="total-rpm-value">—</div>
+      <div id="publisher-name" class="publisher-name"></div>
     </div>
+    <div id="positions-list" class="positions-list"></div>
+    <div class="more-row">
+      <button id="more-btn" class="more-btn">📸 گزارش تصویری</button>
+    </div>
+  </div>
 
-    <div id="no-data-section" class="section hidden">
-      <div class="status-msg warning">
-        <strong>داده‌ای یافت نشد</strong><br />
-        هیچ موقعیت تطابق‌یافته‌ای در فایل Excel پیدا نشد.
-      </div>
-      <div id="debug-info" class="debug-info"></div>
-    </div>
+  <!-- Loading -->
+  <div id="loading" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <div id="loading-text" class="loading-text">در حال پردازش...</div>
   </div>
 
   <script src="libs/xlsx.min.js"></script>
