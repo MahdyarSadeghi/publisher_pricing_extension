@@ -23,13 +23,36 @@
     }
 
     const allIds = new Set();
+
+    // Regex scan on full HTML (catches lazily rendered elements)
     const re = /id=["']ynpos-(\d+)["']/g;
     let match;
     while ((match = re.exec(document.documentElement.innerHTML)) !== null) {
       allIds.add(match[1]);
     }
+    // DOM query
     document.querySelectorAll('[id^="ynpos-"]').forEach((el) => {
       allIds.add(el.id.replace("ynpos-", ""));
+    });
+    // Data-attribute variants (some Yektanet setups)
+    document.querySelectorAll('[data-ynpos],[data-position-id]').forEach((el) => {
+      const id = el.getAttribute('data-ynpos') || el.getAttribute('data-position-id');
+      if (id && /^\d+$/.test(id)) allIds.add(id);
+    });
+    // Same-origin iframes
+    document.querySelectorAll('iframe').forEach((fr) => {
+      try {
+        const doc = fr.contentDocument;
+        if (!doc) return;
+        doc.querySelectorAll('[id^="ynpos-"]').forEach((el) => {
+          allIds.add(el.id.replace("ynpos-", ""));
+        });
+        const reIf = /id=["']ynpos-(\d+)["']/g;
+        let m2;
+        while ((m2 = reIf.exec(doc.documentElement.innerHTML)) !== null) {
+          allIds.add(m2[1]);
+        }
+      } catch (_) {}
     });
 
     return { appId, positionIds: [...allIds] };
@@ -62,62 +85,102 @@
     );
   });
 
-  // Close sidebar via postMessage from iframe
   window.addEventListener("message", (event) => {
-    if (event.data && event.data.type === "CLOSE_SIDEBAR") {
+    if (!event.data) return;
+    if (event.data.type === "CLOSE_SIDEBAR") {
       container.style.display = "none";
     }
-    if (event.data && event.data.type === "HIGHLIGHT_POSITION") {
+    if (event.data.type === "HIGHLIGHT_POSITION") {
       highlightPosition(event.data.positionId);
     }
   });
 
-  function highlightPosition(posId) {
-    const el = document.getElementById("ynpos-" + posId);
-    if (!el) return;
+  // ── Highlight (DevTools-style) ───────────────────────────────
+  function findElement(posId) {
+    // Main document
+    let el = document.getElementById("ynpos-" + posId);
+    if (el) return { el, iframeEl: null };
 
-    // inject keyframes once
+    // Data attribute variants
+    el = document.querySelector('[data-ynpos="' + posId + '"],[data-position-id="' + posId + '"]');
+    if (el) return { el, iframeEl: null };
+
+    // Same-origin iframes
+    for (const fr of document.querySelectorAll('iframe')) {
+      try {
+        const doc = fr.contentDocument;
+        if (!doc) continue;
+        const candidate = doc.getElementById("ynpos-" + posId) ||
+          doc.querySelector('[data-ynpos="' + posId + '"],[data-position-id="' + posId + '"]');
+        if (candidate) return { el: candidate, iframeEl: fr };
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function highlightPosition(posId) {
+    const found = findElement(posId);
+    if (!found) {
+      iframe.contentWindow.postMessage({ type: "HIGHLIGHT_NOT_FOUND", positionId: posId }, "*");
+      return;
+    }
+    const { el, iframeEl } = found;
+
+    // Inject animation keyframes once
     if (!document.getElementById("ynprice-kf")) {
       const s = document.createElement("style");
       s.id = "ynprice-kf";
       s.textContent =
         "@keyframes ynprice-in{" +
-          "0%{opacity:0;transform:scale(1.06)}" +
-          "18%{opacity:1;transform:scale(1)}" +
-          "75%{opacity:1}" +
+          "0%{opacity:0;transform:scale(1.04)}" +
+          "12%{opacity:1;transform:scale(1)}" +
+          "78%{opacity:1}" +
           "100%{opacity:0}" +
         "}";
       document.head.appendChild(s);
     }
 
-    document.querySelectorAll(".ynprice-overlay").forEach(function(e){ e.remove(); });
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.querySelectorAll(".ynprice-overlay").forEach((e) => e.remove());
 
-    // wait for scroll to settle then paint a fixed overlay (DevTools-style)
-    setTimeout(function() {
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return;
-      const pad = 5;
-      const ov = document.createElement("div");
-      ov.className = "ynprice-overlay";
-      ov.style.cssText =
-        "position:fixed;" +
-        "top:" + (rect.top - pad) + "px;" +
-        "left:" + (rect.left - pad) + "px;" +
-        "width:" + (rect.width + pad * 2) + "px;" +
-        "height:" + (rect.height + pad * 2) + "px;" +
-        "background:rgba(254,208,73,0.18);" +
-        "border:2px solid #FED049;" +
-        "border-radius:5px;" +
-        "box-shadow:0 0 0 3000px rgba(0,0,0,0.08);" +
-        "pointer-events:none;" +
-        "z-index:2147483646;" +
-        "animation:ynprice-in 2.4s ease forwards;";
-      document.body.appendChild(ov);
-      setTimeout(function(){ ov.remove(); }, 2500);
-    }, 650);
+    // Calculate ABSOLUTE document position BEFORE any scroll
+    // so the overlay tracks the element correctly during smooth scroll
+    const elRect = el.getBoundingClientRect();
+    let absTop, absLeft;
+    if (iframeEl) {
+      const frRect = iframeEl.getBoundingClientRect();
+      const innerScrollY = iframeEl.contentWindow ? (iframeEl.contentWindow.scrollY || 0) : 0;
+      const innerScrollX = iframeEl.contentWindow ? (iframeEl.contentWindow.scrollX || 0) : 0;
+      absTop  = frRect.top  + window.scrollY + elRect.top  + innerScrollY;
+      absLeft = frRect.left + window.scrollX + elRect.left + innerScrollX;
+    } else {
+      absTop  = elRect.top  + window.scrollY;
+      absLeft = elRect.left + window.scrollX;
+    }
+
+    const pad = 6;
+    const ov = document.createElement("div");
+    ov.className = "ynprice-overlay";
+    // position:absolute so the overlay stays with the element as the page scrolls
+    ov.style.cssText =
+      "position:absolute;" +
+      "top:"    + Math.round(absTop  - pad) + "px;" +
+      "left:"   + Math.round(absLeft - pad) + "px;" +
+      "width:"  + Math.round(elRect.width  + pad * 2) + "px;" +
+      "height:" + Math.round(elRect.height + pad * 2) + "px;" +
+      "background:rgba(229,57,53,0.12);" +
+      "border:3px solid #e53935;" +
+      "border-radius:5px;" +
+      "box-shadow:0 0 0 9999px rgba(0,0,0,0.22);" +
+      "pointer-events:none;" +
+      "z-index:2147483646;" +
+      "animation:ynprice-in 2.4s ease forwards;";
+    document.body.appendChild(ov);
+
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => ov.remove(), 2500);
   }
 
+  // ── Screenshots ──────────────────────────────────────────────
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "TAKE_SCREENSHOTS") {
       sendResponse({ ok: true });
