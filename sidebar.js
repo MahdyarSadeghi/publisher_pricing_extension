@@ -124,6 +124,10 @@
       updateAnalyzeBtn();
       if(!e.data.appId){ showError(); }
     }
+    if(e.data.type==="HIGHLIGHT_NOT_FOUND"){
+      var card=document.querySelector('[data-posid="'+e.data.positionId+'"]');
+      if(card){card.classList.add("pos-card-notfound");setTimeout(function(){card.classList.remove("pos-card-notfound");},700);}
+    }
   });
 
   // ── Date pickers ──────────────────────────────────────────────
@@ -384,33 +388,44 @@
     var botPct=100-topPct;
 
     function detectDevice(desc,type){
-      var s=((desc||"")+" "+(type||"")).toLowerCase();
-      if(/mob|mobile|موبایل/.test(s))return"mob";
-      if(/desk|desktop|دسکتاپ|pc/.test(s))return"desk";
+      var d=(desc||"").toLowerCase();
+      var t=(type||"").toLowerCase();
+      var all=d+" "+t;
+      // type-based (most reliable)
+      if(/\bmob\b|^mob[-_]|[-_]mob\b|mob[-_]banner|mob[-_]native/.test(t))return"mob";
+      if(/\bdesk\b|^desk[-_]|[-_]desk\b/.test(t))return"desk";
+      // keyword in description
+      if(/موبایل|mobile\b/.test(all))return"mob";
+      if(/دسکتاپ|desktop\b/.test(all))return"desk";
+      // sticky is almost always mobile in Yektanet
+      if(/sticky/.test(all))return"mob";
       return null;
     }
 
     function makeCard(item){
       var card=document.createElement("div");
-      card.className="pos-card";
+      card.className="pos-card pos-card-found";
+      card.setAttribute("data-posid",item.positionId);
       var label=item.description||("ynpos-"+item.positionId);
       var found=item.foundOnPage;
       var dev=detectDevice(item.description,item.positionType);
       var devHtml=dev?'<span class="pos-device-badge pos-device-'+dev+'">'+(dev==="mob"?"موبایل":"دسکتاپ")+'</span>':'';
+      var dotCls=found?"pos-found-on":"pos-found-off";
+      var dotTitle=found?"روی این صفحه موجوده":"در این صفحه یافت نشد";
       card.innerHTML=
         '<div class="pos-icon">'+(item.positionType||item.positionId||'').slice(0,3).toUpperCase()+'</div>'+
         '<div class="pos-body">'+
           '<div class="pos-name">'+label+'</div>'+
-          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span>'+devHtml+'</div>'+
+          '<div class="pos-meta">'+
+            '<span class="pos-found-dot '+dotCls+'" title="'+dotTitle+'"></span>'+
+            '<span>ynpos-'+toFa(item.positionId)+'</span>'+devHtml+
+          '</div>'+
         '</div>'+
         '<div class="pos-rpm-col"><div class="pos-rpm-val">'+fmtRpm(item.rpm)+'</div></div>';
-      if(found){
-        card.classList.add("pos-card-found");
-        card.title="کلیک کن تا روی صفحه پیدا بشه";
-        card.addEventListener("click",function(){
-          window.parent.postMessage({type:"HIGHLIGHT_POSITION",positionId:item.positionId},"*");
-        });
-      }
+      card.title="کلیک کن تا روی صفحه پیدا بشه"+(found?"":" (ممکنه در این صفحه نباشه)");
+      card.addEventListener("click",function(){
+        window.parent.postMessage({type:"HIGHLIGHT_POSITION",positionId:item.positionId},"*");
+      });
       return card;
     }
 
@@ -433,7 +448,8 @@
     }
     noData.forEach(function(item){
       var card=document.createElement("div");
-      card.className="pos-card no-data";
+      card.className="pos-card no-data pos-card-found";
+      card.setAttribute("data-posid",item.positionId);
       var label=item.description||("ynpos-"+item.positionId);
       var dev=detectDevice(item.description,item.positionType||"");
       var devHtml=dev?'<span class="pos-device-badge pos-device-'+dev+'">'+(dev==="mob"?"موبایل":"دسکتاپ")+'</span>':'';
@@ -441,9 +457,13 @@
         '<div class="pos-icon">—</div>'+
         '<div class="pos-body">'+
           '<div class="pos-name">'+label+'</div>'+
-          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span>'+devHtml+'<span class="no-data-tag">· بدون داده</span></div>'+
+          '<div class="pos-meta"><span class="pos-found-dot pos-found-off" title="در این صفحه یافت نشد"></span><span>ynpos-'+toFa(item.positionId)+'</span>'+devHtml+'<span class="no-data-tag">· بدون داده</span></div>'+
         '</div>'+
         '<div class="pos-rpm-col"><div class="pos-rpm-val">—</div></div>';
+      card.title="کلیک کن تا روی صفحه پیدا بشه (ممکنه در این صفحه نباشه)";
+      card.addEventListener("click",function(){
+        window.parent.postMessage({type:"HIGHLIGHT_POSITION",positionId:item.positionId},"*");
+      });
       list.appendChild(card);
     });
   }
