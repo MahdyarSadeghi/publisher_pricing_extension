@@ -367,6 +367,14 @@ header {
 .pos-meta { font-size: 9.5px; color: var(--muted); font-family: 'Vazirmatn', monospace; margin-top: 2px; display: flex; gap: 5px; }
 .pos-meta .no-data-tag { color: var(--danger); }
 
+.pos-divider-90 {
+  font-size: 9.5px; color: var(--muted); text-align: center;
+  padding: 4px 0; letter-spacing: .06em;
+  display: flex; align-items: center; gap: 6px;
+}
+.pos-divider-90::before,.pos-divider-90::after {
+  content:''; flex:1; height:1px; background:var(--border);
+}
 .pos-rpm-col { text-align: left; flex-shrink: 0; }
 .pos-rpm-val { font-size: 13px; font-weight: 600; font-family: 'Vazirmatn', monospace; letter-spacing: -.02em; }
 .pos-rpm-unit { font-size: 9px; color: var(--muted); margin-inline-start: 1px; }
