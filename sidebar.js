@@ -379,17 +379,29 @@
     for(var si=0;si<withRpm.length;si++){cumul+=(withRpm[si].totalAdv||0);if(totalAdv>0&&cumul/totalAdv>=0.9){splitIdx=si;break;}}
     var top90=withRpm.slice(0,splitIdx+1);
     var bottom=withRpm.slice(splitIdx+1);
+    var topAdv=top90.reduce(function(s,p){return s+(p.totalAdv||0);},0);
+    var topPct=totalAdv>0?Math.round(topAdv/totalAdv*100):90;
+    var botPct=100-topPct;
 
-    function makeCard(item,extraClass){
+    function detectDevice(desc,type){
+      var s=((desc||"")+" "+(type||"")).toLowerCase();
+      if(/mob|mobile|موبایل/.test(s))return"mob";
+      if(/desk|desktop|دسکتاپ|pc/.test(s))return"desk";
+      return null;
+    }
+
+    function makeCard(item){
       var card=document.createElement("div");
-      card.className="pos-card"+(extraClass?" "+extraClass:"");
+      card.className="pos-card";
       var label=item.description||("ynpos-"+item.positionId);
       var found=item.foundOnPage;
+      var dev=detectDevice(item.description,item.positionType);
+      var devHtml=dev?'<span class="pos-device-badge pos-device-'+dev+'">'+(dev==="mob"?"موبایل":"دسکتاپ")+'</span>':'';
       card.innerHTML=
         '<div class="pos-icon">'+(item.positionType||item.positionId||'').slice(0,3).toUpperCase()+'</div>'+
         '<div class="pos-body">'+
           '<div class="pos-name">'+label+'</div>'+
-          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span></div>'+
+          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span>'+devHtml+'</div>'+
         '</div>'+
         '<div class="pos-rpm-col"><div class="pos-rpm-val">'+fmtRpm(item.rpm)+'</div></div>';
       if(found){
@@ -407,27 +419,29 @@
       block90.className="pos-block-top90";
       var hdr=document.createElement("div");
       hdr.className="pos-block-header";
-      hdr.textContent="این "+toFa(top90.length)+" جایگاه ۹۰٪ درآمد را می‌سازند";
+      hdr.textContent="این "+toFa(top90.length)+" جایگاه "+toFa(topPct)+"٪ درآمد را می‌سازند";
       block90.appendChild(hdr);
-      top90.forEach(function(item){block90.appendChild(makeCard(item,""));});
+      top90.forEach(function(item){block90.appendChild(makeCard(item));});
       list.appendChild(block90);
     }
     if(bottom.length){
       var lblBot=document.createElement("div");
       lblBot.className="pos-block-bottom-label";
-      lblBot.textContent="الباقی ۱۰٪";
+      lblBot.textContent="الباقی "+toFa(botPct)+"٪";
       list.appendChild(lblBot);
-      bottom.forEach(function(item){list.appendChild(makeCard(item,""));});
+      bottom.forEach(function(item){list.appendChild(makeCard(item));});
     }
     noData.forEach(function(item){
       var card=document.createElement("div");
       card.className="pos-card no-data";
       var label=item.description||("ynpos-"+item.positionId);
+      var dev=detectDevice(item.description,item.positionType||"");
+      var devHtml=dev?'<span class="pos-device-badge pos-device-'+dev+'">'+(dev==="mob"?"موبایل":"دسکتاپ")+'</span>':'';
       card.innerHTML=
         '<div class="pos-icon">—</div>'+
         '<div class="pos-body">'+
           '<div class="pos-name">'+label+'</div>'+
-          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span><span class="no-data-tag">· بدون داده</span></div>'+
+          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span>'+devHtml+'<span class="no-data-tag">· بدون داده</span></div>'+
         '</div>'+
         '<div class="pos-rpm-col"><div class="pos-rpm-val">—</div></div>';
       list.appendChild(card);
