@@ -3,7 +3,7 @@
   "name": "Publisher Pricing Analyzer",
   "version": "1.2.0",
   "description": "تحلیل RPM موقعیت‌های تبلیغاتی یکتانت بر اساس داده‌های تاریخی",
-  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"

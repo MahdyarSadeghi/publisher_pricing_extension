@@ -5,6 +5,7 @@
     return;
   }
 
+  // ── Page scan ────────────────────────────────────────────────
   function scanPage() {
     let appId = null;
 
@@ -34,6 +35,7 @@
     return { appId, positionIds: [...allIds] };
   }
 
+  // ── Sidebar iframe ───────────────────────────────────────────
   const container = document.createElement("div");
   container.id = "ynprice-sidebar-container";
   container.style.cssText =
@@ -60,28 +62,32 @@
     );
   });
 
-  window.addEventListener("message", async (event) => {
-    const msg = event.data;
-    if (!msg) return;
-
-    if (msg.type === "CLOSE_SIDEBAR") {
+  // Close sidebar via postMessage from iframe
+  window.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "CLOSE_SIDEBAR") {
       container.style.display = "none";
-    }
-
-    if (msg.type === "GENERATE_REPORT") {
-      await generateReport(msg.data);
-      iframe.contentWindow.postMessage({ type: "REPORT_DONE" }, "*");
     }
   });
 
-  // ── Report generation ───────────────────────────────────────────
-  async function generateReport(analysisData) {
-    const { matched, unmatched, totalRpm, publisherName, from, to, appId } = analysisData;
+  // ── Screenshot handler (called from sidebar via chrome.tabs.sendMessage) ──
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === "TAKE_SCREENSHOTS") {
+      takeScreenshots(msg.positionIds || [])
+        .catch((e) => console.error("ynprice screenshot error:", e))
+        .then(() => sendResponse({ ok: true }));
+      return true; // keep message channel open for async response
+    }
+  });
 
-    const positionScreenshots = {};
+  async function takeScreenshots(positionIds) {
+    const MAX_MS = 28000;
+    const start = Date.now();
+    const screenshots = {};
 
-    for (const item of matched) {
-      const el = document.getElementById(`ynpos-${item.positionId}`);
+    for (const posId of positionIds) {
+      if (Date.now() - start > MAX_MS) break;
+
+      const el = document.getElementById(`ynpos-${posId}`);
       if (!el) continue;
 
       const style = window.getComputedStyle(el);
@@ -90,14 +96,12 @@
         style.visibility !== "hidden" &&
         el.offsetWidth > 0 &&
         el.offsetHeight > 0;
-
       if (!visible) continue;
 
       el.style.outline = "3px solid #e53935";
       el.style.outlineOffset = "3px";
-
       el.scrollIntoView({ behavior: "instant", block: "center" });
-      await sleep(300);
+      await sleep(280);
 
       const rect = el.getBoundingClientRect();
       const fullDataUrl = await captureTab();
@@ -107,60 +111,47 @@
 
       if (fullDataUrl && rect.width > 0 && rect.height > 0) {
         const cropped = await cropToRect(fullDataUrl, rect);
-        if (cropped) positionScreenshots[item.positionId] = cropped;
+        if (cropped) screenshots[posId] = cropped;
       }
     }
 
     window.scrollTo({ top: 0, behavior: "instant" });
 
-    const matchedWithScreenshots = matched.map((p) => {
-      const el = document.getElementById(`ynpos-${p.positionId}`);
-      let mobileOnly = true;
-      if (el) {
-        const s = window.getComputedStyle(el);
-        mobileOnly =
-          s.display === "none" ||
-          s.visibility === "hidden" ||
-          el.offsetWidth === 0 ||
-          el.offsetHeight === 0;
+    // Patch screenshots into the already-stored report
+    if (Object.keys(screenshots).length > 0) {
+      const stored = await new Promise((r) =>
+        chrome.storage.local.get("ynprice_report", r)
+      );
+      if (stored.ynprice_report) {
+        stored.ynprice_report.matched = stored.ynprice_report.matched.map((p) =>
+          screenshots[p.positionId]
+            ? { ...p, screenshot: screenshots[p.positionId], mobileOnly: false }
+            : p
+        );
+        await new Promise((r) =>
+          chrome.storage.local.set({ ynprice_report: stored.ynprice_report }, r)
+        );
       }
-      return {
-        ...p,
-        screenshot: positionScreenshots[p.positionId] || null,
-        mobileOnly,
-      };
-    });
-
-    const reportData = {
-      matched: matchedWithScreenshots,
-      unmatched,
-      totalRpm,
-      publisherName,
-      from,
-      to,
-      appId,
-      pageTitle: document.title,
-      pageUrl: window.location.href,
-      generatedAt: new Date().toISOString(),
-    };
-
-    await new Promise((resolve) => {
-      chrome.storage.local.set({ ynprice_report: reportData }, () => {
-        if (chrome.runtime.lastError) {
-          console.error("ynprice storage error:", chrome.runtime.lastError.message);
-        }
-        resolve();
-      });
-    });
-
-    chrome.runtime.sendMessage({ type: "OPEN_REPORT_VIEWER" });
+    }
   }
 
+  // ── Helpers ──────────────────────────────────────────────────
   async function captureTab() {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "CAPTURE_TAB" }, (res) => {
-        resolve(res || null);
-      });
+      const timer = setTimeout(() => resolve(null), 3500);
+      try {
+        chrome.runtime.sendMessage({ type: "CAPTURE_TAB" }, (res) => {
+          clearTimeout(timer);
+          if (chrome.runtime.lastError) {
+            resolve(null);
+            return;
+          }
+          resolve(res || null);
+        });
+      } catch (e) {
+        clearTimeout(timer);
+        resolve(null);
+      }
     });
   }
 
@@ -178,8 +169,7 @@
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(sw);
         canvas.height = Math.round(sh);
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        canvas.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.82));
       };
       img.onerror = () => resolve(null);
