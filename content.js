@@ -75,28 +75,47 @@
   function highlightPosition(posId) {
     const el = document.getElementById("ynpos-" + posId);
     if (!el) return;
-    // clear any existing highlight
-    document.querySelectorAll(".ynprice-hl").forEach(function(e) {
-      e.classList.remove("ynprice-hl");
-      e.style.cssText = e._ynOldStyle || "";
-      delete e._ynOldStyle;
-    });
-    el._ynOldStyle = el.style.cssText;
-    el.classList.add("ynprice-hl");
-    el.style.outline = "3px solid #FED049";
-    el.style.outlineOffset = "4px";
-    el.style.borderRadius = "4px";
-    el.style.transition = "outline 0.4s ease";
+
+    // inject keyframes once
+    if (!document.getElementById("ynprice-kf")) {
+      const s = document.createElement("style");
+      s.id = "ynprice-kf";
+      s.textContent =
+        "@keyframes ynprice-in{" +
+          "0%{opacity:0;transform:scale(1.06)}" +
+          "18%{opacity:1;transform:scale(1)}" +
+          "75%{opacity:1}" +
+          "100%{opacity:0}" +
+        "}";
+      document.head.appendChild(s);
+    }
+
+    document.querySelectorAll(".ynprice-overlay").forEach(function(e){ e.remove(); });
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    // pulse: fade out after 2.5s
+
+    // wait for scroll to settle then paint a fixed overlay (DevTools-style)
     setTimeout(function() {
-      el.style.outline = "3px solid transparent";
-      setTimeout(function() {
-        el.classList.remove("ynprice-hl");
-        el.style.cssText = el._ynOldStyle || "";
-        delete el._ynOldStyle;
-      }, 500);
-    }, 2500);
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+      const pad = 5;
+      const ov = document.createElement("div");
+      ov.className = "ynprice-overlay";
+      ov.style.cssText =
+        "position:fixed;" +
+        "top:" + (rect.top - pad) + "px;" +
+        "left:" + (rect.left - pad) + "px;" +
+        "width:" + (rect.width + pad * 2) + "px;" +
+        "height:" + (rect.height + pad * 2) + "px;" +
+        "background:rgba(254,208,73,0.18);" +
+        "border:2px solid #FED049;" +
+        "border-radius:5px;" +
+        "box-shadow:0 0 0 3000px rgba(0,0,0,0.08);" +
+        "pointer-events:none;" +
+        "z-index:2147483646;" +
+        "animation:ynprice-in 2.4s ease forwards;";
+      document.body.appendChild(ov);
+      setTimeout(function(){ ov.remove(); }, 2500);
+    }, 650);
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
