@@ -367,14 +367,28 @@ header {
 .pos-meta { font-size: 9.5px; color: var(--muted); font-family: 'Vazirmatn', monospace; margin-top: 2px; display: flex; gap: 5px; }
 .pos-meta .no-data-tag { color: var(--danger); }
 
-.pos-divider-90 {
-  font-size: 9.5px; color: var(--muted); text-align: center;
-  padding: 4px 0; letter-spacing: .06em;
-  display: flex; align-items: center; gap: 6px;
+.pos-block-top90 {
+  border: 1.5px solid rgba(254,208,73,.55);
+  border-radius: 10px;
+  padding: 8px 8px 6px;
+  background: rgba(254,208,73,.07);
+  display: flex; flex-direction: column; gap: 4px;
 }
-.pos-divider-90::before,.pos-divider-90::after {
-  content:''; flex:1; height:1px; background:var(--border);
+.pos-block-header {
+  font-size: 9.5px; font-weight: 700; color: #7a6a1f;
+  letter-spacing: .05em; padding: 2px 4px 5px;
 }
+@media (prefers-color-scheme: dark) { .pos-block-header { color: #c9a227; } }
+.pos-block-top90 .pos-card {
+  background: rgba(254,208,73,.09);
+  border-color: rgba(254,208,73,.25);
+}
+.pos-block-bottom-label {
+  font-size: 9.5px; color: var(--muted);
+  padding: 8px 4px 2px; letter-spacing: .04em;
+}
+.pos-card-found { cursor: pointer; }
+.pos-card-found:hover { border-color: var(--accent) !important; box-shadow: 0 0 0 1px rgba(254,208,73,.3); }
 .pos-rpm-col { text-align: left; flex-shrink: 0; }
 .pos-rpm-val { font-size: 13px; font-weight: 600; font-family: 'Vazirmatn', monospace; letter-spacing: -.02em; }
 .pos-rpm-unit { font-size: 9px; color: var(--muted); margin-inline-start: 1px; }

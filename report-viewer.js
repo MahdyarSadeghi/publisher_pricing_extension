@@ -10,7 +10,7 @@ function fmtRpm(n){return n!=null?toFa((Math.round(n*100)/100).toFixed(2)):'—'
 function fmtNum(n){return n!=null?toFa(Math.round(n).toLocaleString('en')):'—';}
 function fmtAxis(v,field){
   if(field==='rpm')return toFa(v.toFixed(1));
-  if(v>=1e9)return toFa((v/1e9).toFixed(1))+'G';
+  if(v>=1e9)return toFa((v/1e9).toFixed(1))+'B';
   if(v>=1e6)return toFa((v/1e6).toFixed(1))+'M';
   if(v>=1000)return toFa(Math.round(v/1000))+'هز';
   return toFa(Math.round(v)+'');
@@ -102,13 +102,12 @@ function makeLineSvg(pts,W,H,opts,field){
   var pL=opts.pL||68,pR=opts.pR||20,pT=opts.pT||18,pB=opts.pB||44;
   var cW=W-pL-pR,cH=H-pT-pB;
   var vals=pts.map(function(p){return+(p[field]||0);});
-  var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=mx-mn||.01;
-  // y padding so line never touches top/bottom
-  var yPad=rng*.12;
-  var yMin=mn-yPad*.5,yMax=mx+yPad,yRng=yMax-yMin;
+  var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals);
+  // y axis from 0, 12% padding above max
+  var yMin=0,yMax=Math.max(mx*1.12,0.01),yRng=yMax;
   var isAdv=field==='totalAdv',isPv=field==='avgPv';
   var color=isAdv?'#60a5fa':isPv?'#34d399':'#FED049';
-  var xPad=10;
+  var xPad=20;
   var xS=pL+xPad,xE=W-pR-xPad;
   var n=pts.length;
   var coords=pts.map(function(p,i){
@@ -283,7 +282,7 @@ function wirePosSearch(){
 function buildOutlookHTML(outlook){
   if(!outlook)return'';
   return[{key:'pessimistic',icon:'📉',title:'بدبینانه',badge:'پرسنتایل ۲۰ام',data:outlook.pessimistic},{key:'realistic',icon:'📊',title:'واقع‌بینانه',badge:'پرسنتایل ۵۰ام',data:outlook.realistic},{key:'optimistic',icon:'📈',title:'خوش‌بینانه',badge:'پرسنتایل ۸۰ام',data:outlook.optimistic}].map(function(item){
-    return'<div class="outlook-card'+(item.key==='realistic'?' realistic':'')+'"><div class="outlook-badge">'+item.badge+'</div><div class="outlook-icon">'+item.icon+'</div><div class="outlook-title">'+item.title+'</div><div class="outlook-rpm">'+fmtRpm(item.data.rpm)+'</div><div class="outlook-rpm-lbl">تومان / هزار نمایش</div><div class="outlook-divider"></div><div class="outlook-revenue">'+fmtNum(item.data.monthly)+'</div><div class="outlook-revenue-lbl">تومان / ماه (تخمینی)</div></div>';
+    return'<div class="outlook-card'+(item.key==='realistic'?' realistic':'')+'"><div class="outlook-badge">'+item.badge+'</div><div class="outlook-icon">'+item.icon+'</div><div class="outlook-title">'+item.title+'</div><div class="outlook-rpm">'+fmtRpm(item.data.rpm)+'</div><div class="outlook-rpm-lbl">تومان / نمایش</div><div class="outlook-divider"></div><div class="outlook-revenue">'+fmtNum(item.data.monthly)+'</div><div class="outlook-revenue-lbl">تومان / ماه (تخمینی)</div></div>';
   }).join('');
 }
 function buildPositionTable(stats,pubPct){
@@ -382,7 +381,7 @@ function render(d){
   html+=buildFilterBar();
   html+='<div class="main">';
   html+='<div class="stats-row">'+
-    '<div class="stat-card"><div class="stat-card-lbl">میانگین RPM</div><div class="stat-card-val" id="stat-rpm">'+fmtRpm(totalRpm)+'</div><div class="stat-card-unit">تومان / هزار نمایش</div></div>'+
+    '<div class="stat-card"><div class="stat-card-lbl">میانگین RPM</div><div class="stat-card-val" id="stat-rpm">'+fmtRpm(totalRpm)+'</div><div class="stat-card-unit">تومان / نمایش</div></div>'+
     '<div class="stat-card"><div class="stat-card-lbl">میانگین PV روزانه</div><div class="stat-card-val" id="stat-pv">'+fmtNum(avgPv)+'</div><div class="stat-card-unit">بازدید در روز</div></div>'+
     '<div class="stat-card"><div class="stat-card-lbl">میانگین درآمد روزانه</div><div class="stat-card-val" id="stat-adv" style="font-size:18px">'+fmtNum(vd.length?totalAdv/vd.length:0)+'</div><div class="stat-card-unit">تومان در روز</div></div>'+
   '</div>';
