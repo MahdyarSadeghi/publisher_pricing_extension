@@ -222,6 +222,7 @@
             totalAdv:rows.reduce(function(s,r){return s+r[1];},0),
             totalPv: rows.reduce(function(s,r){return s+r[2];},0),
             rowCount:rows.length,
+            rows:rows,
           });
         });
 

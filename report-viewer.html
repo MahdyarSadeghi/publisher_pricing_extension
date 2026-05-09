@@ -2,320 +2,487 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>گزارش تحلیل ناشر</title>
+  <title>گزارش ناشر · یکتانت</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
+    :root {
+      --accent: #FED049;
+      --ink: #1c1917;
+      --bg: #fafaf9;
+      --card: #ffffff;
+      --border: #e7e5e4;
+      --text: #1c1917;
+      --muted: #78716c;
+      --subtle: #f5f5f4;
+      --success: #10b981;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c0a09;
+        --card: #1c1917;
+        --border: #292524;
+        --text: #fafaf9;
+        --muted: #a8a29e;
+        --subtle: #231f1d;
+      }
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Tahoma, Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; direction: rtl; }
+    body {
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      direction: rtl;
+      min-height: 100vh;
+    }
 
-    /* Header */
-    .report-header {
-      background: #1a1a2e;
+    /* ── Header ────────────────────────────────────────────────── */
+    .hdr {
+      background: var(--ink);
       color: #fff;
-      padding: 20px 32px;
+      padding: 0 28px;
+      height: 60px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .report-header h1 { font-size: 18px; font-weight: 700; }
-    .header-meta { font-size: 13px; opacity: .75; }
-    .header-meta span { margin-left: 16px; }
-    .total-rpm-pill {
-      background: #69f0ae;
-      color: #1a1a2e;
-      font-size: 22px;
-      font-weight: 800;
-      padding: 6px 18px;
-      border-radius: 20px;
-      direction: ltr;
-    }
-
-    /* Grid */
-    .positions-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      gap: 20px;
-      padding: 24px 32px;
-    }
-
-    /* Card */
-    .pos-card {
-      background: #fff;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
-      cursor: pointer;
-      transition: transform .2s, box-shadow .2s;
-      border: 2px solid transparent;
-    }
-    .pos-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.14); }
-    .pos-card.no-data { opacity: .55; cursor: default; }
-
-    .card-screenshot {
-      width: 100%;
-      aspect-ratio: 16/9;
-      object-fit: cover;
-      object-position: center;
-      display: block;
-      background: #eceff1;
-    }
-    .card-screenshot.placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      color: #cfd8dc;
-    }
-
-    .card-body { padding: 14px 16px; }
-    .card-posid {
-      font-family: monospace;
-      font-size: 12px;
-      background: #eceff1;
-      color: #37474f;
-      padding: 3px 8px;
-      border-radius: 5px;
-      display: inline-block;
-      margin-bottom: 8px;
-    }
-    .card-desc { font-size: 12px; color: #607d8b; margin-bottom: 10px; line-height: 1.4; min-height: 18px; }
-    .card-rpm {
-      font-size: 34px;
-      font-weight: 800;
-      color: #3949ab;
-      direction: ltr;
-      line-height: 1;
-      margin-bottom: 4px;
-    }
-    .card-rpm.na { font-size: 18px; color: #b0bec5; }
-    .card-rpm-label { font-size: 10px; color: #90a4ae; }
-    .card-footer {
-      display: flex;
-      gap: 10px;
-      font-size: 10px;
-      color: #90a4ae;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #f5f5f5;
-      flex-wrap: wrap;
-    }
-
-    /* Modal */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.65);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal-box {
-      background: #fff;
-      border-radius: 14px;
-      max-width: 800px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
-      box-shadow: 0 20px 60px rgba(0,0,0,.4);
-    }
-    .modal-header {
-      background: #1a1a2e;
-      color: #fff;
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-radius: 14px 14px 0 0;
+      gap: 16px;
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 200;
     }
-    .modal-header h2 { font-size: 15px; }
-    .modal-close {
-      background: rgba(255,255,255,.15);
-      border: none;
-      color: #fff;
-      width: 30px;
-      height: 30px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .hdr-brand { display: flex; align-items: center; gap: 10px; }
+    .y-logo {
+      width: 30px; height: 30px;
+      background: var(--accent); color: var(--ink);
+      border-radius: 7px;
+      font-size: 15px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
     }
-    .modal-close:hover { background: rgba(255,255,255,.3); }
-    .modal-body { padding: 20px; }
-    .modal-screenshot {
-      width: 100%;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      border: 1px solid #e0e0e0;
+    .hdr-name { font-size: 14px; font-weight: 600; }
+    .hdr-meta { font-size: 11px; color: #a8a29e; margin-top: 2px; }
+    .rpm-pill {
+      background: var(--accent); color: var(--ink);
+      padding: 7px 14px;
+      border-radius: 10px;
+      display: flex; align-items: baseline; gap: 4px;
+      flex-shrink: 0;
     }
-    .modal-rpm {
-      font-size: 48px;
-      font-weight: 800;
-      color: #3949ab;
-      direction: ltr;
-      margin-bottom: 4px;
-    }
-    .modal-rpm-label { font-size: 12px; color: #90a4ae; margin-bottom: 20px; }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .stat-box {
-      background: #f5f6fa;
-      border-radius: 8px;
-      padding: 12px;
-    }
-    .stat-label { font-size: 11px; color: #90a4ae; margin-bottom: 4px; }
-    .stat-value { font-size: 16px; font-weight: 600; color: #1a1a2e; direction: ltr; }
+    .rpm-pill-val { font-size: 20px; font-weight: 700; }
+    .rpm-pill-unit { font-size: 11px; font-weight: 500; opacity: .75; }
 
-    /* Loading */
-    #loading { padding: 60px; text-align: center; color: #90a4ae; font-size: 16px; }
+    /* ── Grid ──────────────────────────────────────────────────── */
+    .grid-wrap { padding: 20px 28px 48px; }
+    .grid-head {
+      font-size: 12px; font-weight: 600;
+      color: var(--muted);
+      letter-spacing: .04em;
+      margin-bottom: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    /* ── Card ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 28px rgba(0,0,0,.1);
+      border-color: var(--accent);
+    }
+    .card.no-data { opacity: .55; cursor: default; }
+    .card.no-data:hover { transform: none; box-shadow: none; border-color: var(--border); }
+    .card-thumb { width: 100%; aspect-ratio: 3/1; object-fit: cover; display: block; background: var(--subtle); }
+    .card-placeholder {
+      width: 100%; aspect-ratio: 3/1;
+      background: var(--subtle);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; color: var(--muted);
+    }
+    .card-body { padding: 10px 12px 12px; }
+    .card-pid { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .card-label {
+      font-size: 13px; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      margin-bottom: 8px;
+    }
+    .card-rpm { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1; }
+    .card-rpm.na { font-size: 14px; color: var(--muted); }
+    .card-rpm-unit { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .card-chips {
+      display: flex; gap: 5px; flex-wrap: wrap;
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .chip {
+      background: var(--subtle);
+      border-radius: 4px; padding: 2px 7px;
+      font-size: 10px; color: var(--muted);
+    }
+
+    /* ── Overlay ───────────────────────────────────────────────── */
+    .overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 1000;
+      align-items: flex-start; justify-content: center;
+      padding: 28px 16px 48px;
+      overflow-y: auto;
+    }
+    .overlay.open { display: flex; }
+
+    /* ── Modal ─────────────────────────────────────────────────── */
+    .mbox {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      max-width: 700px; width: 100%;
+      margin: auto;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,.4);
+    }
+    .mhdr {
+      background: var(--ink); color: #fff;
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .mhdr-pid { font-size: 11px; opacity: .5; margin-bottom: 2px; }
+    .mhdr-name { font-size: 15px; font-weight: 600; }
+    .mbtn-close {
+      background: rgba(255,255,255,.12); border: none; color: #fff;
+      width: 30px; height: 30px; border-radius: 7px;
+      cursor: pointer; font-size: 14px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mbtn-close:hover { background: rgba(255,255,255,.25); }
+    .mbody { padding: 18px; }
+
+    .m-screenshot {
+      width: 100%; max-height: 260px; object-fit: contain;
+      border-radius: 8px; border: 1px solid var(--border);
+      display: block; margin-bottom: 16px; background: var(--subtle);
+    }
+    .m-no-img {
+      height: 100px; background: var(--subtle); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; margin-bottom: 16px;
+    }
+    .m-rpm-hero { text-align: center; margin-bottom: 16px; }
+    .m-rpm-num { font-size: 52px; font-weight: 700; color: var(--accent); line-height: 1; }
+    .m-rpm-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    .m-stats {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px; margin-bottom: 16px;
+    }
+    .stat { background: var(--subtle); border-radius: 8px; padding: 10px 12px; }
+    .stat-l { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .stat-v { font-size: 16px; font-weight: 600; }
+
+    .chart-hdr {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .chart-hdr::before {
+      content: ""; display: inline-block;
+      width: 3px; height: 13px;
+      background: var(--accent); border-radius: 2px;
+    }
+    .chart-svg { display: block; width: 100%; overflow: visible; }
+    .chart-empty {
+      padding: 24px; text-align: center;
+      color: var(--muted); font-size: 13px;
+      background: var(--subtle); border-radius: 8px;
+    }
+
+    /* ── Loading ───────────────────────────────────────────────── */
+    #loading {
+      height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      color: var(--muted);
+    }
+    .ld-logo {
+      width: 44px; height: 44px;
+      background: var(--accent); color: var(--ink);
+      border-radius: 12px; font-size: 22px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 8px;
+    }
+    #loading p { font-size: 14px; }
   </style>
 </head>
 <body>
-  <div id="loading">در حال بارگذاری گزارش...</div>
-  <div id="root"></div>
 
-  <!-- Modal -->
-  <div id="modal" class="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2 id="modal-title">جزئیات موقعیت</h2>
-        <button class="modal-close" onclick="closeModal()">✕</button>
+<div id="loading">
+  <div class="ld-logo">Y</div>
+  <p>در حال بارگذاری گزارش...</p>
+</div>
+
+<div id="root" style="display:none;"></div>
+
+<div id="overlay" class="overlay">
+  <div class="mbox">
+    <div class="mhdr">
+      <div>
+        <div class="mhdr-pid" id="m-pid"></div>
+        <div class="mhdr-name" id="m-name"></div>
       </div>
-      <div class="modal-body" id="modal-body"></div>
+      <button class="mbtn-close" id="m-close">✕</button>
     </div>
+    <div class="mbody" id="m-body"></div>
   </div>
+</div>
 
-  <script>
-    var reportData = null;
+<script>
+(function () {
+  'use strict';
 
-    chrome.storage.local.get("ynprice_report", function (result) {
-      document.getElementById("loading").style.display = "none";
-      if (!result.ynprice_report) {
-        document.getElementById("root").innerHTML = '<p style="padding:40px;color:#e53935;">گزارشی یافت نشد. لطفاً دوباره از اکستنشن گزارش بگیرید.</p>';
-        return;
-      }
-      reportData = result.ynprice_report;
-      renderReport(reportData);
+  function toFa(s) {
+    return String(s).replace(/[0-9]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[+d]; });
+  }
+  function fmtRpm(n) { return n != null ? toFa(Math.round(n)) : '—'; }
+  function fmtNum(n) { return n != null ? toFa(Math.round(n).toLocaleString('en')) : '—'; }
+  function fmtDate(iso) { return iso ? toFa(iso.replace(/-/g, '/')) : ''; }
+
+  var data = null;
+
+  chrome.storage.local.get('ynprice_report', function (result) {
+    document.getElementById('loading').style.display = 'none';
+    if (!result.ynprice_report) {
+      document.getElementById('root').style.display = '';
+      document.getElementById('root').innerHTML =
+        '<div style="height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">' +
+        '<div style="font-size:48px">😕</div>' +
+        '<div style="font-size:16px;font-weight:600;">گزارشی یافت نشد</div>' +
+        '<div style="font-size:13px;color:var(--muted);">لطفاً دوباره از اکستنشن گزارش بگیرید.</div>' +
+        '</div>';
+      return;
+    }
+    data = result.ynprice_report;
+    render(data);
+    document.getElementById('root').style.display = '';
+  });
+
+  // ── Render ────────────────────────────────────────────────────
+  function render(d) {
+    var root = document.getElementById('root');
+
+    var hdr = document.createElement('div');
+    hdr.className = 'hdr';
+    hdr.innerHTML =
+      '<div class="hdr-brand">' +
+        '<div class="y-logo">Y</div>' +
+        '<div>' +
+          '<div class="hdr-name">' + esc(d.publisherName || 'گزارش ناشر') + '</div>' +
+          '<div class="hdr-meta">' + fmtDate(d.from) + ' — ' + fmtDate(d.to) + ' &nbsp;·&nbsp; ' + esc(d.appId) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rpm-pill">' +
+        '<span class="rpm-pill-val">' + fmtRpm(d.totalRpm) + '</span>' +
+        '<span class="rpm-pill-unit">K تومان / ۱K</span>' +
+      '</div>';
+    root.appendChild(hdr);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'grid-wrap';
+    wrap.innerHTML =
+      '<div class="grid-head">جایگاه‌های شناسایی‌شده &nbsp;·&nbsp; ' +
+      toFa(d.matched.length) + ' جایگاه</div>';
+
+    var grid = document.createElement('div');
+    grid.className = 'grid';
+
+    d.matched.forEach(function (item, idx) {
+      grid.appendChild(makeCard(item, idx));
     });
 
-    function fmtDate(iso) {
-      // Convert YYYY-MM-DD to readable Persian date label
-      return iso ? iso.replace(/-/g, "/") : "";
-    }
-
-    function renderReport(data) {
-      var root = document.getElementById("root");
-
-      // Header
-      var hdr = document.createElement("div");
-      hdr.className = "report-header";
-      hdr.innerHTML =
-        '<div>' +
-          '<h1>📊 گزارش تحلیل ناشر</h1>' +
-          (data.publisherName ? '<div style="opacity:.75;margin-top:4px;">' + data.publisherName + '</div>' : '') +
-        '</div>' +
-        '<div class="header-meta">' +
-          '<span>📅 ' + fmtDate(data.from) + ' تا ' + fmtDate(data.to) + '</span>' +
-          '<span>App ID: ' + data.appId + '</span>' +
-        '</div>' +
-        '<div>' +
-          '<div style="font-size:11px;opacity:.6;text-align:center;margin-bottom:4px;">RPM کل</div>' +
-          '<div class="total-rpm-pill">' + (data.totalRpm !== null ? data.totalRpm.toFixed(4) : "N/A") + '</div>' +
+    (d.unmatched || []).forEach(function (pid) {
+      var card = document.createElement('div');
+      card.className = 'card no-data';
+      card.innerHTML =
+        '<div class="card-placeholder">—</div>' +
+        '<div class="card-body">' +
+          '<div class="card-pid">ynpos-' + toFa(pid) + '</div>' +
+          '<div class="card-label">جایگاه ' + toFa(pid) + '</div>' +
+          '<div class="card-rpm na">بدون داده</div>' +
         '</div>';
-      root.appendChild(hdr);
-
-      // Grid
-      var grid = document.createElement("div");
-      grid.className = "positions-grid";
-
-      data.matched.forEach(function (item, idx) {
-        var card = document.createElement("div");
-        card.className = "pos-card";
-        card.onclick = function () { openModal(idx); };
-
-        var screenshotHtml;
-        if (item.screenshot) {
-          screenshotHtml = '<img class="card-screenshot" src="' + item.screenshot + '" alt="screenshot" loading="lazy" />';
-        } else {
-          screenshotHtml = '<div class="card-screenshot placeholder">📷</div>';
-        }
-
-        card.innerHTML =
-          screenshotHtml +
-          '<div class="card-body">' +
-            '<span class="card-posid">ynpos-' + item.positionId + '</span>' +
-            '<div class="card-desc">' + (item.description || "") + '</div>' +
-            '<div class="' + (item.rpm !== null ? 'card-rpm' : 'card-rpm na') + '">' +
-              (item.rpm !== null ? item.rpm.toFixed(4) : "بدون داده") +
-            '</div>' +
-            '<div class="card-rpm-label">میانگین RPM</div>' +
-            '<div class="card-footer">' +
-              '<span>📅 ' + item.rowCount + ' روز</span>' +
-              '<span>💰 ' + Math.round(item.totalAdv).toLocaleString() + '</span>' +
-              (item.positionType ? '<span>🏷️ ' + item.positionType + '</span>' : '') +
-            '</div>' +
-          '</div>';
-        grid.appendChild(card);
-      });
-
-      if (data.unmatched && data.unmatched.length) {
-        data.unmatched.forEach(function (posId) {
-          var card = document.createElement("div");
-          card.className = "pos-card no-data";
-          card.innerHTML =
-            '<div class="card-screenshot placeholder">—</div>' +
-            '<div class="card-body">' +
-              '<span class="card-posid">ynpos-' + posId + '</span>' +
-              '<div class="card-rpm na">بدون داده</div>' +
-            '</div>';
-          grid.appendChild(card);
-        });
-      }
-
-      root.appendChild(grid);
-    }
-
-    function openModal(idx) {
-      var item = reportData.matched[idx];
-      document.getElementById("modal-title").textContent = "ynpos-" + item.positionId;
-
-      var body = document.getElementById("modal-body");
-      body.innerHTML =
-        (item.screenshot
-          ? '<img class="modal-screenshot" src="' + item.screenshot + '" />'
-          : '<div style="background:#f5f5f5;border-radius:8px;height:200px;display:flex;align-items:center;justify-content:center;font-size:40px;margin-bottom:20px;">📷</div>') +
-        '<div class="modal-rpm">' + (item.rpm !== null ? item.rpm.toFixed(4) : "N/A") + '</div>' +
-        '<div class="modal-rpm-label">میانگین RPM (هزینه تبلیغات ÷ بازدید صفحه)</div>' +
-        '<div class="stats-grid">' +
-          '<div class="stat-box"><div class="stat-label">توضیحات</div><div class="stat-value" style="font-size:13px;">' + (item.description || "—") + '</div></div>' +
-          '<div class="stat-box"><div class="stat-label">نوع موقعیت</div><div class="stat-value" style="font-size:13px;">' + (item.positionType || "—") + '</div></div>' +
-          '<div class="stat-box"><div class="stat-label">تعداد روزهای داده</div><div class="stat-value">' + item.rowCount + '</div></div>' +
-          '<div class="stat-box"><div class="stat-label">مجموع هزینه تبلیغات</div><div class="stat-value">' + Math.round(item.totalAdv).toLocaleString() + '</div></div>' +
-          '<div class="stat-box"><div class="stat-label">مجموع بازدید صفحه</div><div class="stat-value">' + Math.round(item.totalPv).toLocaleString() + '</div></div>' +
-          '<div class="stat-box"><div class="stat-label">میانگین روزانه PV</div><div class="stat-value">' + Math.round(item.totalPv / Math.max(item.rowCount, 1)).toLocaleString() + '</div></div>' +
-        '</div>';
-
-      document.getElementById("modal").classList.add("open");
-    }
-
-    function closeModal() {
-      document.getElementById("modal").classList.remove("open");
-    }
-
-    document.getElementById("modal").addEventListener("click", function (e) {
-      if (e.target === this) closeModal();
+      grid.appendChild(card);
     });
-  </script>
+
+    wrap.appendChild(grid);
+    root.appendChild(wrap);
+  }
+
+  function makeCard(item, idx) {
+    var card = document.createElement('div');
+    var cn = 'card';
+    if (item.rpm == null) cn += ' no-data';
+    card.className = cn;
+    if (item.rpm != null) card.onclick = function () { openModal(idx); };
+
+    var thumb = item.screenshot
+      ? '<img class="card-thumb" src="' + item.screenshot + '" loading="lazy" />'
+      : '<div class="card-placeholder">' + (item.mobileOnly ? '📱' : '📷') + '</div>';
+
+    var rpmHtml = item.rpm != null
+      ? '<div class="card-rpm">' + fmtRpm(item.rpm) + '</div>' +
+        '<div class="card-rpm-unit">K تومان / ۱K نمایش</div>'
+      : '<div class="card-rpm na">بدون داده</div>';
+
+    var chips = '';
+    if (item.rowCount) chips += '<span class="chip">' + toFa(item.rowCount) + ' روز</span>';
+    if (item.positionType) chips += '<span class="chip">' + esc(item.positionType) + '</span>';
+    if (item.mobileOnly) chips += '<span class="chip">موبایل</span>';
+
+    card.innerHTML =
+      thumb +
+      '<div class="card-body">' +
+        '<div class="card-pid">ynpos-' + toFa(item.positionId) + '</div>' +
+        '<div class="card-label">' + esc(item.description || 'جایگاه ' + item.positionId) + '</div>' +
+        rpmHtml +
+        (chips ? '<div class="card-chips">' + chips + '</div>' : '') +
+      '</div>';
+    return card;
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────
+  function openModal(idx) {
+    var item = data.matched[idx];
+
+    document.getElementById('m-pid').textContent = 'ynpos-' + item.positionId;
+    document.getElementById('m-name').textContent = item.description || ('جایگاه ' + item.positionId);
+
+    var body = document.getElementById('m-body');
+
+    var imgHtml = item.screenshot
+      ? '<img class="m-screenshot" src="' + item.screenshot + '" />'
+      : '<div class="m-no-img">' + (item.mobileOnly ? '📱' : '📷') + '</div>';
+
+    var avgPv = item.rowCount ? Math.round((item.totalPv || 0) / item.rowCount) : 0;
+
+    body.innerHTML =
+      imgHtml +
+      '<div class="m-rpm-hero">' +
+        '<div class="m-rpm-num">' + fmtRpm(item.rpm) + '</div>' +
+        '<div class="m-rpm-label">میانگین RPM · هزار تومان به ازای ۱,۰۰۰ نمایش</div>' +
+      '</div>' +
+      '<div class="m-stats">' +
+        '<div class="stat"><div class="stat-l">روزهای داده</div><div class="stat-v">' + toFa(item.rowCount || 0) + '</div></div>' +
+        '<div class="stat"><div class="stat-l">میانگین PV/روز</div><div class="stat-v">' + fmtNum(avgPv) + '</div></div>' +
+        '<div class="stat"><div class="stat-l">مجموع هزینه تبلیغات</div><div class="stat-v" style="font-size:13px">' + fmtNum(item.totalAdv) + '</div></div>' +
+      '</div>' +
+      '<div class="chart-hdr">هیستوری روزانه RPM</div>' +
+      buildChart(item.rows || []);
+
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  // ── History chart ─────────────────────────────────────────────
+  function buildChart(rows) {
+    var pts = rows
+      .filter(function (r) { return r[2] > 0; })
+      .map(function (r) { return { date: r[0], rpm: r[1] / r[2] }; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+
+    if (pts.length < 2) {
+      return '<div class="chart-empty">داده‌ی کافی برای نمایش نمودار وجود ندارد</div>';
+    }
+
+    var W = 640, H = 150, pL = 52, pR = 12, pT = 12, pB = 36;
+    var cW = W - pL - pR, cH = H - pT - pB;
+
+    var rpms = pts.map(function (p) { return p.rpm; });
+    var mn = Math.min.apply(null, rpms);
+    var mx = Math.max.apply(null, rpms);
+    var rng = mx - mn || 1;
+
+    var coords = pts.map(function (p, i) {
+      return {
+        x: pL + (i / (pts.length - 1)) * cW,
+        y: pT + (1 - (p.rpm - mn) / rng) * cH,
+        date: p.date
+      };
+    });
+
+    var linePath = coords.map(function (c, i) {
+      return (i === 0 ? 'M' : 'L') + c.x.toFixed(1) + ',' + c.y.toFixed(1);
+    }).join(' ');
+
+    var areaPath = linePath +
+      ' L' + coords[coords.length - 1].x.toFixed(1) + ',' + (pT + cH) +
+      ' L' + pL + ',' + (pT + cH) + ' Z';
+
+    var yTicks = [0, 0.25, 0.5, 0.75, 1].map(function (t) {
+      return { y: pT + (1 - t) * cH, label: toFa(Math.round(mn + t * rng)) };
+    });
+
+    var xCount = Math.min(6, pts.length);
+    var xIdxs = [];
+    for (var j = 0; j < xCount; j++) {
+      xIdxs.push(Math.round(j / Math.max(xCount - 1, 1) * (pts.length - 1)));
+    }
+
+    var gridLines = yTicks.map(function (t) {
+      return '<line x1="' + pL + '" y1="' + t.y.toFixed(1) +
+        '" x2="' + (W - pR) + '" y2="' + t.y.toFixed(1) +
+        '" stroke="currentColor" stroke-opacity="0.08" stroke-width="1"/>';
+    }).join('');
+
+    var yLabels = yTicks.map(function (t) {
+      return '<text x="' + (pL - 5) + '" y="' + (t.y + 4).toFixed(1) +
+        '" text-anchor="end" font-size="10" fill="currentColor" opacity="0.5">' +
+        t.label + '</text>';
+    }).join('');
+
+    var xLabels = xIdxs.map(function (i) {
+      var c = coords[i];
+      return '<text x="' + c.x.toFixed(1) + '" y="' + (H - 6) +
+        '" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5">' +
+        toFa(c.date.slice(5)) + '</text>';
+    }).join('');
+
+    return '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H +
+      '" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#FED049" stop-opacity="0.35"/>' +
+      '<stop offset="100%" stop-color="#FED049" stop-opacity="0"/>' +
+      '</linearGradient></defs>' +
+      gridLines +
+      '<path d="' + areaPath + '" fill="url(#cg)"/>' +
+      '<path d="' + linePath + '" fill="none" stroke="#FED049" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      yLabels + xLabels +
+      '</svg>';
+  }
+
+  function esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  document.getElementById('m-close').addEventListener('click', function () {
+    document.getElementById('overlay').classList.remove('open');
+  });
+  document.getElementById('overlay').addEventListener('click', function (e) {
+    if (e.target === this) document.getElementById('overlay').classList.remove('open');
+  });
+})();
+</script>
 </body>
 </html>
