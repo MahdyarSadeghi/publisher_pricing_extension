@@ -2,60 +2,178 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>Publisher Pricing Analyzer</title>
+  <title>Yektanet RPM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="sidebar.css" />
 </head>
 <body>
-  <header>
-    <span class="logo-title">📊 تحلیل قیمت ناشر</span>
-    <button id="close-btn" title="بستن">✕</button>
+
+  <!-- Header -->
+  <header id="header">
+    <div class="header-brand">
+      <div class="y-logo">Y</div>
+      <div class="header-text">
+        <div class="header-title">RPM یکتانت</div>
+        <div class="header-sub" id="header-sub">تخمین RPM لحظه‌ای</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="refresh-btn" title="محاسبه مجدد">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 8a6 6 0 1 1-1.76-4.24M14 3v3.5h-3.5"/></svg>
+      </button>
+      <button class="icon-btn" id="close-btn" title="بستن">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
   </header>
 
-  <!-- Page info (appears after scan) -->
-  <div id="page-info" class="info-bar hidden">
-    <span id="page-host" class="host"></span>
-    <span id="app-id-badge" class="app-badge"></span>
+  <!-- Site strip (shown after scan) -->
+  <div id="site-strip" class="site-strip hidden">
+    <div class="site-favicon" id="site-favicon">?</div>
+    <div class="site-info">
+      <div class="site-domain" id="site-domain"></div>
+      <div class="site-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text"></span>
+      </div>
+    </div>
   </div>
 
-  <!-- Step 1: Date range -->
-  <div class="section">
+  <!-- Date picker section -->
+  <div id="date-section" class="section">
     <div id="data-status" class="data-status loading">در حال بارگذاری داده‌ها...</div>
     <div class="date-group">
-      <label>از تاریخ</label>
+      <label class="date-label">از تاریخ</label>
       <div class="date-row">
-        <select id="from-year" class="sel-year"></select>
-        <select id="from-month" class="sel-month"></select>
-        <select id="from-day" class="sel-day"></select>
+        <select id="from-year" class="sel sel-year"></select>
+        <select id="from-month" class="sel sel-month"></select>
+        <select id="from-day" class="sel sel-day"></select>
       </div>
     </div>
     <div class="date-group">
-      <label>تا تاریخ</label>
+      <label class="date-label">تا تاریخ</label>
       <div class="date-row">
-        <select id="to-year" class="sel-year"></select>
-        <select id="to-month" class="sel-month"></select>
-        <select id="to-day" class="sel-day"></select>
+        <select id="to-year" class="sel sel-year"></select>
+        <select id="to-month" class="sel sel-month"></select>
+        <select id="to-day" class="sel sel-day"></select>
       </div>
     </div>
-    <button id="analyze-btn" disabled>آنالیز کن</button>
+    <button id="analyze-btn" class="analyze-btn" disabled>آنالیز کن</button>
   </div>
 
-  <!-- Results -->
+  <!-- Loading state -->
+  <div id="loading-section" class="section hidden">
+    <div class="loader-card">
+      <div class="loader-label">در حال محاسبه RPM...</div>
+      <!-- Slot-machine digit rollers -->
+      <div class="slot-machine" dir="ltr">
+        <div class="slot-digits">
+          <div class="slot-col"><div class="slot-reel slot-reel-0">۰۱۲۳۴۵۶۷۸۹۰</div></div>
+          <div class="slot-col"><div class="slot-reel slot-reel-1">۰۱۲۳۴۵۶۷۸۹۰</div></div>
+          <div class="slot-col"><div class="slot-reel slot-reel-2">۰۱۲۳۴۵۶۷۸۹۰</div></div>
+        </div>
+        <span class="slot-unit">K</span>
+        <div class="slot-shimmer"></div>
+      </div>
+      <!-- Compute steps -->
+      <div class="compute-steps" id="compute-steps">
+        <div class="compute-step done" data-step="0">
+          <div class="step-dot done"></div>
+          <span class="step-label">خواندن هیستوری</span>
+          <span class="step-val" id="step-val-0"></span>
+        </div>
+        <div class="compute-step done" data-step="1">
+          <div class="step-dot done"></div>
+          <span class="step-label">تشخیص جایگاه‌ها</span>
+          <span class="step-val" id="step-val-1"></span>
+        </div>
+        <div class="compute-step active" data-step="2">
+          <div class="step-dot active"></div>
+          <span class="step-label">تطبیق با داده‌ها</span>
+          <span class="step-val">...</span>
+        </div>
+        <div class="compute-step pending" data-step="3">
+          <div class="step-dot pending"></div>
+          <span class="step-label">محاسبه RPM</span>
+          <span class="step-val"></span>
+        </div>
+      </div>
+    </div>
+    <!-- Skeleton list -->
+    <div class="skeleton-list">
+      <div class="skeleton-label">جایگاه‌های شناسایی‌شده</div>
+      <div class="skeleton-item" style="--d:0s;--w:72%"></div>
+      <div class="skeleton-item" style="--d:.12s;--w:58%"></div>
+      <div class="skeleton-item" style="--d:.24s;--w:65%"></div>
+      <div class="skeleton-item" style="--d:.36s;--w:50%"></div>
+    </div>
+  </div>
+
+  <!-- Results section -->
   <div id="results-section" class="hidden">
-    <div class="total-rpm-card">
-      <div class="total-rpm-label">RPM کل ناشر</div>
-      <div id="total-rpm" class="total-rpm-value">—</div>
-      <div id="publisher-name" class="publisher-name"></div>
+    <!-- Hero RPM card -->
+    <div class="hero-wrap">
+      <div class="hero-card">
+        <div class="hero-label">RPM پیشنهادی</div>
+        <div class="hero-rpm-row">
+          <span class="hero-rpm" id="hero-rpm">—</span>
+          <span class="hero-unit">K</span>
+          <span class="hero-currency">تومان / ۱K نمایش</span>
+        </div>
+        <div class="hero-trend-row">
+          <div class="hero-spark" id="hero-spark"></div>
+          <div class="hero-meta">
+            <div class="hero-uplift" id="hero-uplift"></div>
+            <div class="hero-period">۷ روز اخیر</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-range">
+        <span>کف <span id="hero-floor"></span>K</span>
+        <span>سقف <span id="hero-ceiling"></span>K</span>
+      </div>
     </div>
-    <div id="positions-list" class="positions-list"></div>
-    <div class="more-row">
-      <button id="more-btn" class="more-btn">📸 گزارش تصویری</button>
+
+    <!-- Positions list -->
+    <div class="pos-section">
+      <div class="pos-section-header">
+        <span class="pos-section-label">جایگاه‌های شناسایی‌شده</span>
+        <span class="pos-section-count" id="pos-count"></span>
+      </div>
+      <div id="positions-list" class="positions-list"></div>
     </div>
   </div>
 
-  <!-- Loading -->
-  <div id="loading" class="loading-overlay hidden">
-    <div class="spinner"></div>
-    <div id="loading-text" class="loading-text">در حال پردازش...</div>
+  <!-- Error: no Yektanet script -->
+  <div id="error-state" class="state-center hidden">
+    <div class="state-icon state-icon-error">😶‍🌫️</div>
+    <div class="state-title">اسکریپت یکتانت در این صفحه نیست</div>
+    <div class="state-body">این صفحه از یکتانت استفاده نمی‌کند یا اسکریپت هنوز بارگذاری نشده.</div>
+    <button class="primary-btn" id="retry-btn">تلاش مجدد</button>
+  </div>
+
+  <!-- No data state -->
+  <div id="nodata-state" class="state-center hidden">
+    <div class="state-icon">🤔</div>
+    <div class="state-title">داده‌ای پیدا نشد</div>
+    <div class="state-body" id="nodata-body">این ناشر در داده‌های تاریخی موجود نیست.</div>
+  </div>
+
+  <!-- CTA footer (shown with results) -->
+  <div id="cta-footer" class="cta-footer hidden">
+    <button id="more-btn" class="cta-btn">
+      <div class="cta-btn-text">
+        <div class="cta-btn-main">دریافت گزارش کامل</div>
+        <div class="cta-btn-sub">همه جایگاه‌ها و پیش‌بینی</div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+    </button>
+    <div class="cta-note">
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h5v5M14 2L7 9M12 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4"/></svg>
+      گزارش جدید در تب جدید باز می‌شود
+    </div>
   </div>
 
   <script src="sidebar.js"></script>
