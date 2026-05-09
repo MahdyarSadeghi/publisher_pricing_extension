@@ -89,6 +89,18 @@
       chrome.runtime.sendMessage({type:"OPEN_REPORT_VIEWER"},function(){
         if(chrome.runtime.lastError){ console.warn("OPEN_REPORT_VIEWER:",chrome.runtime.lastError.message); }
       });
+      // fire-and-forget screenshots from the host page
+      (function(){
+        var posIds=(analysisResult.matched||[]).filter(function(p){return p.foundOnPage;}).map(function(p){return p.positionId;});
+        if(!posIds.length) return;
+        chrome.tabs.query({active:true,currentWindow:false},function(tabs){
+          var hostTab=tabs&&tabs.find(function(t){return t.url===scanResult.pageUrl;});
+          if(!hostTab) return;
+          chrome.tabs.sendMessage(hostTab.id,{type:"TAKE_SCREENSHOTS",positionIds:posIds},function(){
+            if(chrome.runtime.lastError){ /* tab may not be ready */ }
+          });
+        });
+      })();
       btn.classList.remove("reporting");
       btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
     }catch(e){

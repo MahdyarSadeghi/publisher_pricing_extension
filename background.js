@@ -12,4 +12,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return false;
   }
+  if (msg.type === "CAPTURE_TAB") {
+    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 82 }, dataUrl => {
+      if (chrome.runtime.lastError) { sendResponse(null); return; }
+      sendResponse(dataUrl);
+    });
+    return true;
+  }
 });
