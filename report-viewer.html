@@ -72,7 +72,19 @@
     #loading { height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted); }
     .ld-logo { width:50px; height:50px; background:var(--accent); color:#1c1917; border-radius:13px; font-size:25px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-bottom:4px; }
     #loading p { font-size:14px; }
-    @media (max-width:640px) { .outlook-row{grid-template-columns:1fr} .hdr{padding:0 16px;height:56px} .main{padding:16px 14px 40px} }
+    .filter-bar { background:var(--card); border-bottom:1px solid var(--border); padding:10px 24px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; position:sticky; top:64px; z-index:100; }
+    .filter-group { display:flex; align-items:center; gap:6px; }
+    .filter-lbl { font-size:11px; color:var(--muted); white-space:nowrap; }
+    .filter-sel { font-family:inherit; font-size:12px; background:var(--subtle); border:1px solid var(--border); border-radius:6px; padding:5px 8px; color:var(--text); direction:rtl; cursor:pointer; }
+    .filter-btn { font-family:inherit; font-size:12px; font-weight:600; background:var(--accent); color:#1c1917; border:none; border-radius:6px; padding:6px 14px; cursor:pointer; white-space:nowrap; }
+    .filter-btn:hover { opacity:.85; }
+    .toggle-group { display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; margin-right:auto; }
+    .toggle-btn { font-family:inherit; font-size:11px; font-weight:600; background:none; border:none; padding:5px 12px; cursor:pointer; color:var(--muted); transition:background .15s,color .15s; }
+    .toggle-btn.active { background:var(--accent); color:#1c1917; }
+    .pos-screenshot-wrap { margin-top:14px; border-radius:8px; overflow:hidden; background:var(--subtle); min-height:40px; display:flex; align-items:center; justify-content:center; }
+    .pos-screenshot-img { width:100%; height:auto; display:block; border-radius:8px; }
+    .pos-screenshot-pending { font-size:11px; color:var(--muted); padding:14px; text-align:center; }
+    @media (max-width:640px) { .outlook-row{grid-template-columns:1fr} .hdr{padding:0 16px;height:56px} .main{padding:16px 14px 40px} .filter-bar{top:56px;padding:8px 14px;} }
   </style>
 </head>
 <body>
