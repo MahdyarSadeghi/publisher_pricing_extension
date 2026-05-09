@@ -72,10 +72,12 @@
   // ── Screenshot handler (called from sidebar via chrome.tabs.sendMessage) ──
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "TAKE_SCREENSHOTS") {
+      // Respond immediately so the message channel doesn't block or time out.
+      // Screenshots are patched into storage asynchronously after the channel closes.
+      sendResponse({ ok: true });
       takeScreenshots(msg.positionIds || [])
-        .catch((e) => console.error("ynprice screenshot error:", e))
-        .then(() => sendResponse({ ok: true }));
-      return true; // keep message channel open for async response
+        .catch((e) => console.error("ynprice screenshot error:", e));
+      return false;
     }
   });
 

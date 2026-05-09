@@ -72,9 +72,8 @@
     try{
       var tabs=await chrome.tabs.query({active:true,currentWindow:true});
       var tabId=tabs[0]&&tabs[0].id;
-      if(!tabId) throw new Error("no tab");
 
-      // Store base report (no screenshots yet) directly from extension page
+      // Build and store the base report immediately (no screenshots yet)
       var baseReport={
         matched:analysisResult.matched.map(function(p){
           return Object.assign({},p,{screenshot:null,mobileOnly:!p.foundOnPage});
@@ -91,25 +90,22 @@
         chrome.storage.local.set({ynprice_report:baseReport},resolve);
       });
 
-      // Positions that are actually on the current page (can screenshot)
-      var screenshotIds=analysisResult.matched
-        .filter(function(p){return p.foundOnPage;})
-        .map(function(p){return p.positionId;});
+      // Open report viewer NOW — don't wait for screenshots
+      chrome.tabs.create({url:chrome.runtime.getURL("report-viewer.html")});
+      btn.classList.remove("reporting");
+      btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
 
-      var done=false;
-      var openReport=function(){
-        if(done) return; done=true;
-        chrome.tabs.create({url:chrome.runtime.getURL("report-viewer.html")});
-        btn.classList.remove("reporting");
-        btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
-      };
-
-      // Open report even if screenshots time out (30s safeguard)
-      var timeout=setTimeout(openReport,30000);
-      chrome.tabs.sendMessage(tabId,{type:"TAKE_SCREENSHOTS",positionIds:screenshotIds},function(){
-        clearTimeout(timeout);
-        openReport();
-      });
+      // Fire screenshot job in background (fire-and-forget via content script)
+      if(tabId){
+        var screenshotIds=analysisResult.matched
+          .filter(function(p){return p.foundOnPage;})
+          .map(function(p){return p.positionId;});
+        if(screenshotIds.length>0){
+          // Respond immediately so channel doesn't hang; content.js patches storage
+          chrome.tabs.sendMessage(tabId,{type:"TAKE_SCREENSHOTS",positionIds:screenshotIds},
+            function(){ if(chrome.runtime.lastError){/* ignore */} });
+        }
+      }
     }catch(e){
       console.error("Report error:",e);
       btn.classList.remove("reporting");

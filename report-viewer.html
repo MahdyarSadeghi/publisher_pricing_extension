@@ -254,7 +254,7 @@
   function toFa(s) {
     return String(s).replace(/[0-9]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[+d]; });
   }
-  function fmtRpm(n) { return n != null ? toFa(Math.round(n)) : '—'; }
+  function fmtRpm(n) { return n != null ? toFa((Math.round(n * 100) / 100).toFixed(2)) : '—'; }
   function fmtNum(n) { return n != null ? toFa(Math.round(n).toLocaleString('en')) : '—'; }
   function fmtDate(iso) { return iso ? toFa(iso.replace(/-/g, '/')) : ''; }
 
