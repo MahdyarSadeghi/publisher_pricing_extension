@@ -350,8 +350,6 @@
     // Hero
     var rpm=res.totalRpm;
     $("hero-rpm").textContent=rpm!==null?fmtRpm(rpm):"—";
-    $("hero-floor").textContent=rpm!==null?fmtRpm(rpm*0.92):"—";
-    $("hero-ceiling").textContent=rpm!==null?fmtRpm(rpm*1.1):"—";
 
     if(res.uplift!==null){
       $("hero-uplift").textContent=fmtPct(res.uplift);
@@ -363,41 +361,54 @@
     // Sparkline
     renderSparkline("hero-spark", res.trend);
 
-    // Positions
-    var allPos=res.matched.concat(res.unmatched.map(function(id){
-      return {positionId:id,rpm:null,description:"",positionType:"",noData:true};
-    }));
+    // Positions — sort by RPM desc, add 90% revenue separator
+    var withRpm=res.matched.filter(function(p){return p.rpm!==null;})
+      .sort(function(a,b){return(b.rpm||0)-(a.rpm||0);});
+    var noData=res.unmatched.map(function(id){
+      return{positionId:id,rpm:null,description:"",positionType:"",noData:true};
+    });
 
     $("pos-count").textContent=
       toFa(res.matched.length)+"/"+toFa(res.allPositionCount||res.matched.length);
 
     var list=$("positions-list");
     list.innerHTML="";
-    allPos.forEach(function(item){
+
+    var totalAdv=withRpm.reduce(function(s,p){return s+(p.totalAdv||0);},0);
+    var cumul=0,sepDone=false;
+
+    withRpm.forEach(function(item,i){
+      cumul+=(item.totalAdv||0);
       var card=document.createElement("div");
-      card.className="pos-card"+(item.noData?" no-data":"");
-
+      card.className="pos-card";
       var label=item.description||("ynpos-"+item.positionId);
-      var typeLabel=item.positionType||item.positionId;
-      var iconText=typeLabel.slice(0,3).toUpperCase();
-      var rpmStr=item.rpm!==null?fmtRpm(item.rpm)+"<span class='pos-rpm-unit'>K</span>":"—";
-      var upliftStr="";
-
       card.innerHTML=
-        '<div class="pos-icon">'+iconText+'</div>'+
+        '<div class="pos-icon">'+(item.positionType||item.positionId||'').slice(0,3).toUpperCase()+'</div>'+
         '<div class="pos-body">'+
           '<div class="pos-name">'+label+'</div>'+
-          '<div class="pos-meta">'+
-            '<span>ynpos-'+toFa(item.positionId)+'</span>'+
-            (item.noData?'<span class="no-data-tag">· بدون داده</span>':
-              (item.rowCount?'<span>· '+toFa(item.rowCount)+' روز</span>':'')+
-              (item.totalPv&&item.rowCount?'<span>· '+toFa(Math.round(item.totalPv/item.rowCount).toLocaleString())+' PV/روز</span>':'')
-            )+
-          '</div>'+
+          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span></div>'+
         '</div>'+
-        '<div class="pos-rpm-col">'+
-          '<div class="pos-rpm-val">'+rpmStr+'</div>'+
-        '</div>';
+        '<div class="pos-rpm-col"><div class="pos-rpm-val">'+fmtRpm(item.rpm)+'</div></div>';
+      list.appendChild(card);
+      if(!sepDone&&totalAdv>0&&cumul/totalAdv>=0.9&&i<withRpm.length-1){
+        sepDone=true;
+        var sep=document.createElement("div");
+        sep.className="pos-divider-90";
+        sep.textContent="۹۰٪ درآمد";
+        list.appendChild(sep);
+      }
+    });
+    noData.forEach(function(item){
+      var card=document.createElement("div");
+      card.className="pos-card no-data";
+      var label=item.description||("ynpos-"+item.positionId);
+      card.innerHTML=
+        '<div class="pos-icon">—</div>'+
+        '<div class="pos-body">'+
+          '<div class="pos-name">'+label+'</div>'+
+          '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span><span class="no-data-tag">· بدون داده</span></div>'+
+        '</div>'+
+        '<div class="pos-rpm-col"><div class="pos-rpm-val">—</div></div>';
       list.appendChild(card);
     });
   }
