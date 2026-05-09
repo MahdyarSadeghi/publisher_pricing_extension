@@ -20,6 +20,7 @@
     {
       "resources": [
         "sidebar.html", "sidebar.js", "sidebar.css",
+        "report-viewer.html", "report-viewer.js",
         "data/publisher_data.json"
       ],
       "matches": ["<all_urls>"]
