@@ -67,7 +67,37 @@
     if (event.data && event.data.type === "CLOSE_SIDEBAR") {
       container.style.display = "none";
     }
+    if (event.data && event.data.type === "HIGHLIGHT_POSITION") {
+      highlightPosition(event.data.positionId);
+    }
   });
+
+  function highlightPosition(posId) {
+    const el = document.getElementById("ynpos-" + posId);
+    if (!el) return;
+    // clear any existing highlight
+    document.querySelectorAll(".ynprice-hl").forEach(function(e) {
+      e.classList.remove("ynprice-hl");
+      e.style.cssText = e._ynOldStyle || "";
+      delete e._ynOldStyle;
+    });
+    el._ynOldStyle = el.style.cssText;
+    el.classList.add("ynprice-hl");
+    el.style.outline = "3px solid #FED049";
+    el.style.outlineOffset = "4px";
+    el.style.borderRadius = "4px";
+    el.style.transition = "outline 0.4s ease";
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // pulse: fade out after 2.5s
+    setTimeout(function() {
+      el.style.outline = "3px solid transparent";
+      setTimeout(function() {
+        el.classList.remove("ynprice-hl");
+        el.style.cssText = el._ynOldStyle || "";
+        delete el._ynOldStyle;
+      }, 500);
+    }, 2500);
+  }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "TAKE_SCREENSHOTS") {

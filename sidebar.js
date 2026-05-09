@@ -375,13 +375,16 @@
     list.innerHTML="";
 
     var totalAdv=withRpm.reduce(function(s,p){return s+(p.totalAdv||0);},0);
-    var cumul=0,sepDone=false;
+    var cumul=0,splitIdx=withRpm.length-1;
+    for(var si=0;si<withRpm.length;si++){cumul+=(withRpm[si].totalAdv||0);if(totalAdv>0&&cumul/totalAdv>=0.9){splitIdx=si;break;}}
+    var top90=withRpm.slice(0,splitIdx+1);
+    var bottom=withRpm.slice(splitIdx+1);
 
-    withRpm.forEach(function(item,i){
-      cumul+=(item.totalAdv||0);
+    function makeCard(item,extraClass){
       var card=document.createElement("div");
-      card.className="pos-card";
+      card.className="pos-card"+(extraClass?" "+extraClass:"");
       var label=item.description||("ynpos-"+item.positionId);
+      var found=item.foundOnPage;
       card.innerHTML=
         '<div class="pos-icon">'+(item.positionType||item.positionId||'').slice(0,3).toUpperCase()+'</div>'+
         '<div class="pos-body">'+
@@ -389,15 +392,33 @@
           '<div class="pos-meta"><span>ynpos-'+toFa(item.positionId)+'</span></div>'+
         '</div>'+
         '<div class="pos-rpm-col"><div class="pos-rpm-val">'+fmtRpm(item.rpm)+'</div></div>';
-      list.appendChild(card);
-      if(!sepDone&&totalAdv>0&&cumul/totalAdv>=0.9&&i<withRpm.length-1){
-        sepDone=true;
-        var sep=document.createElement("div");
-        sep.className="pos-divider-90";
-        sep.textContent="۹۰٪ درآمد";
-        list.appendChild(sep);
+      if(found){
+        card.classList.add("pos-card-found");
+        card.title="کلیک کن تا روی صفحه پیدا بشه";
+        card.addEventListener("click",function(){
+          window.parent.postMessage({type:"HIGHLIGHT_POSITION",positionId:item.positionId},"*");
+        });
       }
-    });
+      return card;
+    }
+
+    if(top90.length){
+      var block90=document.createElement("div");
+      block90.className="pos-block-top90";
+      var hdr=document.createElement("div");
+      hdr.className="pos-block-header";
+      hdr.textContent="این "+toFa(top90.length)+" جایگاه ۹۰٪ درآمد را می‌سازند";
+      block90.appendChild(hdr);
+      top90.forEach(function(item){block90.appendChild(makeCard(item,""));});
+      list.appendChild(block90);
+    }
+    if(bottom.length){
+      var lblBot=document.createElement("div");
+      lblBot.className="pos-block-bottom-label";
+      lblBot.textContent="الباقی ۱۰٪";
+      list.appendChild(lblBot);
+      bottom.forEach(function(item){list.appendChild(makeCard(item,""));});
+    }
     noData.forEach(function(item){
       var card=document.createElement("div");
       card.className="pos-card no-data";
@@ -429,11 +450,11 @@
     var gid="sg"+Math.random().toString(36).slice(2,7);
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px" preserveAspectRatio="none">'+
       '<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'+
-      '<stop offset="0%" stop-color="#1c1917" stop-opacity="0.2"/>'+
-      '<stop offset="100%" stop-color="#1c1917" stop-opacity="0"/>'+
+      '<stop offset="0%" stop-color="#FED049" stop-opacity="0.35"/>'+
+      '<stop offset="100%" stop-color="#FED049" stop-opacity="0"/>'+
       '</linearGradient></defs>'+
       '<path d="'+area+'" fill="url(#'+gid+')"/>'+
-      '<path d="'+pts+'" fill="none" stroke="#1c1917" stroke-width="1.5" stroke-linejoin="round"/>'+
+      '<path d="'+pts+'" fill="none" stroke="#FED049" stroke-width="1.5" stroke-linejoin="round"/>'+
       '</svg>';
   }
 
