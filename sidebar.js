@@ -80,16 +80,21 @@
         pageTitle:scanResult.pageTitle,pageUrl:scanResult.pageUrl,
         generatedAt:new Date().toISOString(),
       };
-      await new Promise(function(resolve){
-        chrome.storage.local.set({ynprice_report:report},resolve);
+      await new Promise(function(resolve,reject){
+        chrome.storage.local.set({ynprice_report:report},function(){
+          if(chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve();
+        });
       });
-      chrome.tabs.create({url:chrome.runtime.getURL("report-viewer.html")});
+      chrome.runtime.sendMessage({type:"OPEN_REPORT_VIEWER"},function(){
+        if(chrome.runtime.lastError){ console.warn("OPEN_REPORT_VIEWER:",chrome.runtime.lastError.message); }
+      });
       btn.classList.remove("reporting");
       btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
     }catch(e){
       console.error("Report error:",e);
       btn.classList.remove("reporting");
-      btn.querySelector(".cta-btn-main").textContent="خطا — دوباره تلاش کن";
+      btn.querySelector(".cta-btn-main").textContent="خطا: "+e.message;
     }
   });
 
