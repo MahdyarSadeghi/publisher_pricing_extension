@@ -35,7 +35,7 @@
   function jToISO(jy,jm,jd){var g=jToG(jy,jm,jd);return g.y+"-"+p2(g.m)+"-"+p2(g.d);}
   function p2(n){return String(n).padStart(2,"0");}
   function toFa(s){return String(s).replace(/[0-9]/g,function(d){return "۰۱۲۳۴۵۶۷۸۹"[d];});}
-  function fmtRpm(n){return toFa(Math.round(n));}
+  function fmtRpm(n){return toFa((Math.round(n*100)/100).toFixed(2));}
   function fmtPct(n){return (n>=0?"↑ ":"↓ ")+toFa(Math.abs(n).toFixed(1))+"٪";}
 
   // ── State ─────────────────────────────────────────────────────
@@ -63,12 +63,58 @@
     runAnalysis();
   });
 
-  $("more-btn").addEventListener("click",function(){
+  $("more-btn").addEventListener("click",async function(){
     if(!analysisResult) return;
     var btn=$("more-btn");
     btn.classList.add("reporting");
     btn.querySelector(".cta-btn-main").textContent="⏳ در حال تهیه گزارش...";
-    window.parent.postMessage({type:"GENERATE_REPORT",data:analysisResult},"*");
+
+    try{
+      var tabs=await chrome.tabs.query({active:true,currentWindow:true});
+      var tabId=tabs[0]&&tabs[0].id;
+      if(!tabId) throw new Error("no tab");
+
+      // Store base report (no screenshots yet) directly from extension page
+      var baseReport={
+        matched:analysisResult.matched.map(function(p){
+          return Object.assign({},p,{screenshot:null,mobileOnly:!p.foundOnPage});
+        }),
+        unmatched:analysisResult.unmatched,
+        totalRpm:analysisResult.totalRpm,
+        publisherName:analysisResult.publisherName,
+        from:analysisResult.from,to:analysisResult.to,
+        appId:analysisResult.appId,
+        pageTitle:scanResult.pageTitle,pageUrl:scanResult.pageUrl,
+        generatedAt:new Date().toISOString(),
+      };
+      await new Promise(function(resolve){
+        chrome.storage.local.set({ynprice_report:baseReport},resolve);
+      });
+
+      // Positions that are actually on the current page (can screenshot)
+      var screenshotIds=analysisResult.matched
+        .filter(function(p){return p.foundOnPage;})
+        .map(function(p){return p.positionId;});
+
+      var done=false;
+      var openReport=function(){
+        if(done) return; done=true;
+        chrome.tabs.create({url:chrome.runtime.getURL("report-viewer.html")});
+        btn.classList.remove("reporting");
+        btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
+      };
+
+      // Open report even if screenshots time out (30s safeguard)
+      var timeout=setTimeout(openReport,30000);
+      chrome.tabs.sendMessage(tabId,{type:"TAKE_SCREENSHOTS",positionIds:screenshotIds},function(){
+        clearTimeout(timeout);
+        openReport();
+      });
+    }catch(e){
+      console.error("Report error:",e);
+      btn.classList.remove("reporting");
+      btn.querySelector(".cta-btn-main").textContent="خطا — دوباره تلاش کن";
+    }
   });
 
   $("retry-btn").addEventListener("click",function(){
@@ -83,14 +129,7 @@
       scanResult=e.data;
       renderSiteStrip();
       updateAnalyzeBtn();
-      if(!e.data.appId){
-        showError();
-      }
-    }
-    if(e.data.type==="REPORT_DONE"){
-      var btn=$("more-btn");
-      btn.classList.remove("reporting");
-      btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
+      if(!e.data.appId){ showError(); }
     }
   });
 
@@ -177,12 +216,12 @@
   }
 
   function updateAnalyzeBtn(){
-    var ready=allData&&scanResult&&scanResult.appId&&scanResult.positionIds&&scanResult.positionIds.length>0;
-    $("analyze-btn").disabled=!ready;
+    var hasData=allData&&scanResult&&scanResult.appId&&allData[scanResult.appId];
+    $("analyze-btn").disabled=!hasData;
     if(allData&&scanResult&&!scanResult.appId){
       $("analyze-btn").textContent="App ID یافت نشد";
-    } else if(allData&&scanResult&&scanResult.positionIds&&!scanResult.positionIds.length){
-      $("analyze-btn").textContent="پوزیشنی یافت نشد";
+    } else if(allData&&scanResult&&scanResult.appId&&!allData[scanResult.appId]){
+      $("analyze-btn").textContent="دیتا یافت نشد";
     } else {
       $("analyze-btn").textContent="آنالیز کن";
     }
@@ -192,19 +231,19 @@
   function runAnalysis(){
     var range=getDateRange();
     var appId=scanResult.appId;
-    var positionIds=scanResult.positionIds;
+    var pubData=allData[appId];
+    if(!pubData){showNoData(appId);return;}
 
-    showLoading(positionIds.length);
+    var foundOnPage=new Set(scanResult.positionIds||[]);
+    var allPositionIds=Object.keys(pubData.positions);
 
-    // Defer so loading UI renders first
+    showLoading(allPositionIds.length);
+
     setTimeout(function(){
       try{
-        var pubData=allData[appId];
-        if(!pubData){showNoData(appId);return;}
-
         var matched=[],unmatched=[];
 
-        positionIds.forEach(function(posId){
+        allPositionIds.forEach(function(posId){
           var posData=pubData.positions[posId];
           if(!posData){unmatched.push(posId);return;}
 
@@ -222,6 +261,8 @@
             totalAdv:rows.reduce(function(s,r){return s+r[1];},0),
             totalPv: rows.reduce(function(s,r){return s+r[2];},0),
             rowCount:rows.length,
+            rows:rows,
+            foundOnPage:foundOnPage.has(posId),
           });
         });
 
@@ -236,7 +277,6 @@
           });
         });
 
-        // Daily RPM trend (sorted by date)
         var sortedDates=Object.keys(byDate).sort();
         var dailyRpms=sortedDates.map(function(d){
           return byDate[d].pv>0?byDate[d].adv/byDate[d].pv:null;
@@ -247,7 +287,6 @@
           ?validDates.reduce(function(s,d){return s+byDate[d].adv/byDate[d].pv;},0)/validDates.length
           :null;
 
-        // Uplift: last 7 days vs prior 7 days
         var uplift=null;
         if(dailyRpms.length>=8){
           var last7=dailyRpms.slice(-7).reduce(function(s,v){return s+v;},0)/7;
@@ -259,7 +298,7 @@
           matched:matched,unmatched:unmatched,
           totalRpm:totalRpm,publisherName:pubData.publisher_name||"",
           from:range.from,to:range.to,
-          appId:appId,positionIds:positionIds,
+          appId:appId,allPositionCount:allPositionIds.length,
           pageUrl:scanResult.pageUrl,pageTitle:scanResult.pageTitle,
           trend:dailyRpms,uplift:uplift,
         };
@@ -337,7 +376,7 @@
     }));
 
     $("pos-count").textContent=
-      toFa(res.matched.length)+"/"+toFa(res.positionIds.length);
+      toFa(res.matched.length)+"/"+toFa(res.allPositionCount||res.matched.length);
 
     var list=$("positions-list");
     list.innerHTML="";
