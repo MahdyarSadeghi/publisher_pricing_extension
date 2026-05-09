@@ -5,6 +5,14 @@
     return;
   }
 
+  // All known Yektanet position ID patterns
+  const YN_PREFIXES = [
+    'ynpos-',
+    'pos-article-display-card-',
+    'pos-article-display-',
+    'pos-notification-',
+  ];
+
   // ── Page scan ────────────────────────────────────────────────
   function scanPage() {
     let appId = null;
@@ -23,35 +31,37 @@
     }
 
     const allIds = new Set();
+    const html = document.documentElement.innerHTML;
 
-    // Regex scan on full HTML (catches lazily rendered elements)
-    const re = /id=["']ynpos-(\d+)["']/g;
+    // Regex scan across all known ID patterns
+    const re = /id=["'](ynpos|pos-article-display-card|pos-article-display|pos-notification)-(\d+)["']/g;
     let match;
-    while ((match = re.exec(document.documentElement.innerHTML)) !== null) {
-      allIds.add(match[1]);
+    while ((match = re.exec(html)) !== null) {
+      allIds.add(match[2]);
     }
-    // DOM query
-    document.querySelectorAll('[id^="ynpos-"]').forEach((el) => {
-      allIds.add(el.id.replace("ynpos-", ""));
+
+    // DOM query for all prefixes
+    const selector = YN_PREFIXES.map(p => '[id^="' + p + '"]').join(',');
+    document.querySelectorAll(selector).forEach((el) => {
+      const m = el.id.match(/(\d+)$/);
+      if (m) allIds.add(m[1]);
     });
-    // Data-attribute variants (some Yektanet setups)
+
+    // Data-attribute variants
     document.querySelectorAll('[data-ynpos],[data-position-id]').forEach((el) => {
       const id = el.getAttribute('data-ynpos') || el.getAttribute('data-position-id');
       if (id && /^\d+$/.test(id)) allIds.add(id);
     });
+
     // Same-origin iframes
     document.querySelectorAll('iframe').forEach((fr) => {
       try {
         const doc = fr.contentDocument;
         if (!doc) return;
-        doc.querySelectorAll('[id^="ynpos-"]').forEach((el) => {
-          allIds.add(el.id.replace("ynpos-", ""));
+        doc.querySelectorAll(selector).forEach((el) => {
+          const m = el.id.match(/(\d+)$/);
+          if (m) allIds.add(m[1]);
         });
-        const reIf = /id=["']ynpos-(\d+)["']/g;
-        let m2;
-        while ((m2 = reIf.exec(doc.documentElement.innerHTML)) !== null) {
-          allIds.add(m2[1]);
-        }
       } catch (_) {}
     });
 
@@ -95,29 +105,33 @@
     }
   });
 
-  // ── Highlight (DevTools-style) ───────────────────────────────
+  // ── Find element by any known prefix ────────────────────────
   function findElement(posId) {
-    // Main document
-    let el = document.getElementById("ynpos-" + posId);
-    if (el) return { el, iframeEl: null };
-
-    // Data attribute variants
-    el = document.querySelector('[data-ynpos="' + posId + '"],[data-position-id="' + posId + '"]');
-    if (el) return { el, iframeEl: null };
+    // Try every known Yektanet prefix pattern in main document
+    for (const prefix of YN_PREFIXES) {
+      const el = document.getElementById(prefix + posId);
+      if (el) return { el, iframeEl: null };
+    }
+    // Data attributes
+    const byAttr =
+      document.querySelector('[data-ynpos="' + posId + '"],[data-position-id="' + posId + '"]');
+    if (byAttr) return { el: byAttr, iframeEl: null };
 
     // Same-origin iframes
     for (const fr of document.querySelectorAll('iframe')) {
       try {
         const doc = fr.contentDocument;
         if (!doc) continue;
-        const candidate = doc.getElementById("ynpos-" + posId) ||
-          doc.querySelector('[data-ynpos="' + posId + '"],[data-position-id="' + posId + '"]');
-        if (candidate) return { el: candidate, iframeEl: fr };
+        for (const prefix of YN_PREFIXES) {
+          const candidate = doc.getElementById(prefix + posId);
+          if (candidate) return { el: candidate, iframeEl: fr };
+        }
       } catch (_) {}
     }
     return null;
   }
 
+  // ── Highlight (DevTools-style, fires after scroll ends) ──────
   function highlightPosition(posId) {
     const found = findElement(posId);
     if (!found) {
@@ -141,43 +155,65 @@
     }
 
     document.querySelectorAll(".ynprice-overlay").forEach((e) => e.remove());
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
 
-    // Calculate ABSOLUTE document position BEFORE any scroll
-    // so the overlay tracks the element correctly during smooth scroll
-    const elRect = el.getBoundingClientRect();
-    let absTop, absLeft;
-    if (iframeEl) {
-      const frRect = iframeEl.getBoundingClientRect();
-      const innerScrollY = iframeEl.contentWindow ? (iframeEl.contentWindow.scrollY || 0) : 0;
-      const innerScrollX = iframeEl.contentWindow ? (iframeEl.contentWindow.scrollX || 0) : 0;
-      absTop  = frRect.top  + window.scrollY + elRect.top  + innerScrollY;
-      absLeft = frRect.left + window.scrollX + elRect.left + innerScrollX;
-    } else {
-      absTop  = elRect.top  + window.scrollY;
-      absLeft = elRect.left + window.scrollX;
+    // Show overlay after scroll finishes (detect via scroll-end)
+    // Falls back to 200ms if element is already in view (no scroll event fires)
+    let scrolled = false;
+    let scrollEndTimer = null;
+
+    function showOverlay() {
+      window.removeEventListener("scroll", onScroll, true);
+      clearTimeout(noScrollTimer);
+
+      const elRect = el.getBoundingClientRect();
+      let top, left;
+      if (iframeEl) {
+        const frRect = iframeEl.getBoundingClientRect();
+        top  = frRect.top  + elRect.top;
+        left = frRect.left + elRect.left;
+      } else {
+        top  = elRect.top;
+        left = elRect.left;
+      }
+
+      // Ensure minimum size so even empty placeholder divs are visible
+      const w = Math.max(elRect.width,  60);
+      const h = Math.max(elRect.height, 30);
+      const pad = 6;
+
+      const ov = document.createElement("div");
+      ov.className = "ynprice-overlay";
+      ov.style.cssText =
+        "position:fixed;" +
+        "top:"    + Math.round(top  - pad) + "px;" +
+        "left:"   + Math.round(left - pad) + "px;" +
+        "width:"  + Math.round(w + pad * 2) + "px;" +
+        "height:" + Math.round(h + pad * 2) + "px;" +
+        "background:rgba(229,57,53,0.12);" +
+        "border:3px solid #e53935;" +
+        "border-radius:5px;" +
+        "box-shadow:0 0 0 9999px rgba(0,0,0,0.22);" +
+        "pointer-events:none;" +
+        "z-index:2147483646;" +
+        "animation:ynprice-in 2.4s ease forwards;";
+      document.body.appendChild(ov);
+      setTimeout(() => ov.remove(), 2500);
     }
 
-    const pad = 6;
-    const ov = document.createElement("div");
-    ov.className = "ynprice-overlay";
-    // position:absolute so the overlay stays with the element as the page scrolls
-    ov.style.cssText =
-      "position:absolute;" +
-      "top:"    + Math.round(absTop  - pad) + "px;" +
-      "left:"   + Math.round(absLeft - pad) + "px;" +
-      "width:"  + Math.round(elRect.width  + pad * 2) + "px;" +
-      "height:" + Math.round(elRect.height + pad * 2) + "px;" +
-      "background:rgba(229,57,53,0.12);" +
-      "border:3px solid #e53935;" +
-      "border-radius:5px;" +
-      "box-shadow:0 0 0 9999px rgba(0,0,0,0.22);" +
-      "pointer-events:none;" +
-      "z-index:2147483646;" +
-      "animation:ynprice-in 2.4s ease forwards;";
-    document.body.appendChild(ov);
+    function onScroll() {
+      scrolled = true;
+      clearTimeout(scrollEndTimer);
+      // 120ms after last scroll event = scroll has ended
+      scrollEndTimer = setTimeout(showOverlay, 120);
+    }
 
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => ov.remove(), 2500);
+    // If element already in view or scroll is very fast, fall back after 250ms
+    const noScrollTimer = setTimeout(() => {
+      if (!scrolled) showOverlay();
+    }, 250);
+
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
   }
 
   // ── Screenshots ──────────────────────────────────────────────
@@ -195,8 +231,9 @@
     const screenshots = {};
     for (const posId of positionIds) {
       if (Date.now() - start > MAX_MS) break;
-      const el = document.getElementById("ynpos-" + posId);
-      if (!el) continue;
+      const hit = findElement(posId);
+      if (!hit) continue;
+      const el = hit.el;
       const s = window.getComputedStyle(el);
       if (s.display === "none" || s.visibility === "hidden" || el.offsetWidth === 0) continue;
       el.style.outline = "3px solid #e53935";
