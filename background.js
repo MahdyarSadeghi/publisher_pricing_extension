@@ -8,17 +8,17 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "CAPTURE_TAB") {
-    chrome.tabs.captureVisibleTab(sender.tab.windowId, { format: "jpeg", quality: 85 }, (dataUrl) => {
-      sendResponse(dataUrl || null);
-    });
+    chrome.tabs.captureVisibleTab(
+      sender.tab.windowId,
+      { format: "jpeg", quality: 75 },
+      (dataUrl) => { sendResponse(dataUrl || null); }
+    );
     return true;
   }
 
-  if (msg.type === "SAVE_REPORT") {
-    chrome.storage.local.set({ ynprice_report: msg.data }, () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL("report-viewer.html") });
-      sendResponse({ ok: true });
-    });
-    return true;
+  if (msg.type === "OPEN_REPORT_VIEWER") {
+    chrome.tabs.create({ url: chrome.runtime.getURL("report-viewer.html") });
+    sendResponse({ ok: true });
+    return false;
   }
 });

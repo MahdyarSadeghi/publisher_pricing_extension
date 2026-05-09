@@ -8,12 +8,14 @@
   function scanPage() {
     let appId = null;
 
+    // Check script src attributes
     document.querySelectorAll("script[src]").forEach((s) => {
       if (!appId) {
         const m = s.src.match(/cdn\.yektanet\.com\/superscript\/([^/]+)\//);
         if (m) appId = m[1];
       }
     });
+    // Fallback: search full page HTML
     if (!appId) {
       const m = document.documentElement.innerHTML.match(
         /cdn\.yektanet\.com\/superscript\/([^/]+)\//
@@ -21,11 +23,19 @@
       if (m) appId = m[1];
     }
 
-    const positionIds = [...document.querySelectorAll('[id^="ynpos-"]')].map(
-      (el) => el.id.replace("ynpos-", "")
-    );
+    // Scan full innerHTML for ALL ynpos-* IDs (catches hidden/mobile positions too)
+    const allIds = new Set();
+    const re = /id=["']ynpos-(\d+)["']/g;
+    let match;
+    while ((match = re.exec(document.documentElement.innerHTML)) !== null) {
+      allIds.add(match[1]);
+    }
+    // Also catch dynamically-added elements
+    document.querySelectorAll('[id^="ynpos-"]').forEach((el) => {
+      allIds.add(el.id.replace("ynpos-", ""));
+    });
 
-    return { appId, positionIds };
+    return { appId, positionIds: [...allIds] };
   }
 
   const container = document.createElement("div");
@@ -72,77 +82,78 @@
   async function generateReport(analysisData) {
     const { matched, unmatched, totalRpm, publisherName, from, to, appId } = analysisData;
 
-    // Add red borders to all found ynpos elements
+    // Tag each ynpos element with a red border + check visibility
     const elements = [];
-    matched.concat(unmatched.map((id) => ({ positionId: id, noData: true }))).forEach((item) => {
+    matched.forEach((item) => {
       const el = document.getElementById(`ynpos-${item.positionId}`);
       if (!el) return;
-      el.dataset.ynpriceOrigOutline = el.style.outline;
-      el.dataset.ynpriceOrigOutlineOffset = el.style.outlineOffset;
+      const style = window.getComputedStyle(el);
+      const visible =
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        el.offsetWidth > 0;
+      el.dataset.ynpriceOrig = el.style.outline + "|" + el.style.outlineOffset;
       el.style.outline = "3px solid #e53935";
       el.style.outlineOffset = "3px";
-      elements.push({ ...item, el });
+      elements.push({ ...item, el, mobileOnly: !visible });
     });
 
-    if (elements.length === 0) {
-      // No elements found in DOM — take one full-page screenshot
-      const screenshot = await captureTab();
-      await saveAndOpenReport({ matched, unmatched, totalRpm, publisherName, from, to, appId,
-        pageTitle: document.title, pageUrl: window.location.href,
-        screenshots: [] , fullPageShot: screenshot });
-      return;
-    }
-
-    // Sort by vertical scroll position
-    elements.sort((a, b) => {
-      const aTop = a.el.getBoundingClientRect().top + window.scrollY;
-      const bTop = b.el.getBoundingClientRect().top + window.scrollY;
-      return aTop - bTop;
-    });
-
-    // Group elements into viewport-sized buckets (minimal scrolling)
-    const viewH = window.innerHeight;
-    const groups = [];
-    let groupStart = null;
-
-    for (const item of elements) {
-      const elTop = item.el.getBoundingClientRect().top + window.scrollY;
-      if (groupStart === null || elTop - groupStart > viewH * 0.8) {
-        groups.push([item]);
-        groupStart = elTop;
-      } else {
-        groups[groups.length - 1].push(item);
-      }
-    }
-
-    // Capture each group
     const positionScreenshots = {};
-    for (const group of groups) {
-      const midEl = group[Math.floor(group.length / 2)].el;
-      midEl.scrollIntoView({ behavior: "instant", block: "center" });
-      await sleep(350);
-      const dataUrl = await captureTab();
-      group.forEach((item) => {
-        positionScreenshots[item.positionId] = dataUrl;
+
+    if (elements.length > 0) {
+      // Sort by vertical position
+      elements.sort((a, b) => {
+        const ay = a.el.getBoundingClientRect().top + window.scrollY;
+        const by = b.el.getBoundingClientRect().top + window.scrollY;
+        return ay - by;
       });
+
+      // Group elements into viewport-sized buckets
+      const viewH = window.innerHeight;
+      const groups = [];
+      let groupAnchor = null;
+
+      for (const item of elements) {
+        if (item.mobileOnly) continue; // skip hidden elements
+        const elTop = item.el.getBoundingClientRect().top + window.scrollY;
+        if (groupAnchor === null || elTop - groupAnchor > viewH * 0.75) {
+          groups.push([item]);
+          groupAnchor = elTop;
+        } else {
+          groups[groups.length - 1].push(item);
+        }
+      }
+
+      // Capture each group
+      for (const group of groups) {
+        const midEl = group[Math.floor(group.length / 2)].el;
+        midEl.scrollIntoView({ behavior: "instant", block: "center" });
+        await sleep(350);
+        const dataUrl = await captureTab();
+        if (dataUrl) {
+          group.forEach((item) => { positionScreenshots[item.positionId] = dataUrl; });
+        }
+      }
+
+      // Restore original styles
+      elements.forEach((item) => {
+        const [origOutline, origOffset] = (item.el.dataset.ynpriceOrig || "|").split("|");
+        item.el.style.outline = origOutline || "";
+        item.el.style.outlineOffset = origOffset || "";
+        delete item.el.dataset.ynpriceOrig;
+      });
+
+      window.scrollTo({ top: 0, behavior: "instant" });
     }
 
-    // Restore borders
-    elements.forEach((item) => {
-      item.el.style.outline = item.el.dataset.ynpriceOrigOutline || "";
-      item.el.style.outlineOffset = item.el.dataset.ynpriceOrigOutlineOffset || "";
-    });
-
-    // Scroll back to top
-    window.scrollTo({ top: 0, behavior: "instant" });
-
-    // Attach screenshots to matched positions
+    // Attach screenshot info to matched positions
     const matchedWithScreenshots = matched.map((p) => ({
       ...p,
       screenshot: positionScreenshots[p.positionId] || null,
+      mobileOnly: elements.find((e) => e.positionId === p.positionId)?.mobileOnly || false,
     }));
 
-    await saveAndOpenReport({
+    const reportData = {
       matched: matchedWithScreenshots,
       unmatched,
       totalRpm,
@@ -152,19 +163,23 @@
       appId,
       pageTitle: document.title,
       pageUrl: window.location.href,
-      screenshots: positionScreenshots,
+      generatedAt: new Date().toISOString(),
+    };
+
+    // Store in chrome.storage.local directly (no large message passing)
+    chrome.storage.local.set({ ynprice_report: reportData }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("ynprice storage error:", chrome.runtime.lastError);
+      }
+      chrome.runtime.sendMessage({ type: "OPEN_REPORT_VIEWER" });
     });
   }
 
   async function captureTab() {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "CAPTURE_TAB" }, resolve);
-    });
-  }
-
-  async function saveAndOpenReport(data) {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "SAVE_REPORT", data }, resolve);
+      chrome.runtime.sendMessage({ type: "CAPTURE_TAB" }, (res) => {
+        resolve(res || null);
+      });
     });
   }
 
