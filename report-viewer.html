@@ -16,472 +16,177 @@
       --text: #1c1917;
       --muted: #78716c;
       --subtle: #f5f5f4;
-      --success: #10b981;
     }
     @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0c0a09;
-        --card: #1c1917;
-        --border: #292524;
-        --text: #fafaf9;
-        --muted: #a8a29e;
-        --subtle: #231f1d;
-      }
+      :root { --bg:#0c0a09; --card:#1c1917; --border:#292524; --text:#fafaf9; --muted:#a8a29e; --subtle:#231f1d; }
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Vazirmatn', Tahoma, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      direction: rtl;
-      min-height: 100vh;
-    }
-
-    /* ── Header ────────────────────────────────────────────────── */
-    .hdr {
-      background: var(--ink);
-      color: #fff;
-      padding: 0 28px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      position: sticky;
-      top: 0;
-      z-index: 200;
-    }
-    .hdr-brand { display: flex; align-items: center; gap: 10px; }
-    .y-logo {
-      width: 30px; height: 30px;
-      background: var(--accent); color: var(--ink);
-      border-radius: 7px;
-      font-size: 15px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .hdr-name { font-size: 14px; font-weight: 600; }
-    .hdr-meta { font-size: 11px; color: #a8a29e; margin-top: 2px; }
-    .rpm-pill {
-      background: var(--accent); color: var(--ink);
-      padding: 7px 14px;
-      border-radius: 10px;
-      display: flex; align-items: baseline; gap: 4px;
-      flex-shrink: 0;
-    }
-    .rpm-pill-val { font-size: 20px; font-weight: 700; }
-    .rpm-pill-unit { font-size: 11px; font-weight: 500; opacity: .75; }
-
-    /* ── Grid ──────────────────────────────────────────────────── */
-    .grid-wrap { padding: 20px 28px 48px; }
-    .grid-head {
-      font-size: 12px; font-weight: 600;
-      color: var(--muted);
-      letter-spacing: .04em;
-      margin-bottom: 14px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 14px;
-    }
-
-    /* ── Card ──────────────────────────────────────────────────── */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      cursor: pointer;
-      transition: transform .15s, box-shadow .15s, border-color .15s;
-    }
-    .card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 28px rgba(0,0,0,.1);
-      border-color: var(--accent);
-    }
-    .card.no-data { opacity: .55; cursor: default; }
-    .card.no-data:hover { transform: none; box-shadow: none; border-color: var(--border); }
-    .card-thumb { width: 100%; aspect-ratio: 3/1; object-fit: cover; display: block; background: var(--subtle); }
-    .card-placeholder {
-      width: 100%; aspect-ratio: 3/1;
-      background: var(--subtle);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 24px; color: var(--muted);
-    }
-    .card-body { padding: 10px 12px 12px; }
-    .card-pid { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
-    .card-label {
-      font-size: 13px; font-weight: 600;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      margin-bottom: 8px;
-    }
-    .card-rpm { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1; }
-    .card-rpm.na { font-size: 14px; color: var(--muted); }
-    .card-rpm-unit { font-size: 10px; color: var(--muted); margin-top: 2px; }
-    .card-chips {
-      display: flex; gap: 5px; flex-wrap: wrap;
-      margin-top: 8px; padding-top: 8px;
-      border-top: 1px solid var(--border);
-    }
-    .chip {
-      background: var(--subtle);
-      border-radius: 4px; padding: 2px 7px;
-      font-size: 10px; color: var(--muted);
-    }
-
-    /* ── Overlay ───────────────────────────────────────────────── */
-    .overlay {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.65);
-      z-index: 1000;
-      align-items: flex-start; justify-content: center;
-      padding: 28px 16px 48px;
-      overflow-y: auto;
-    }
-    .overlay.open { display: flex; }
-
-    /* ── Modal ─────────────────────────────────────────────────── */
-    .mbox {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      max-width: 700px; width: 100%;
-      margin: auto;
-      overflow: hidden;
-      box-shadow: 0 30px 80px rgba(0,0,0,.4);
-    }
-    .mhdr {
-      background: var(--ink); color: #fff;
-      padding: 14px 18px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      position: sticky; top: 0; z-index: 10;
-    }
-    .mhdr-pid { font-size: 11px; opacity: .5; margin-bottom: 2px; }
-    .mhdr-name { font-size: 15px; font-weight: 600; }
-    .mbtn-close {
-      background: rgba(255,255,255,.12); border: none; color: #fff;
-      width: 30px; height: 30px; border-radius: 7px;
-      cursor: pointer; font-size: 14px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .mbtn-close:hover { background: rgba(255,255,255,.25); }
-    .mbody { padding: 18px; }
-
-    .m-screenshot {
-      width: 100%; max-height: 260px; object-fit: contain;
-      border-radius: 8px; border: 1px solid var(--border);
-      display: block; margin-bottom: 16px; background: var(--subtle);
-    }
-    .m-no-img {
-      height: 100px; background: var(--subtle); border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 32px; margin-bottom: 16px;
-    }
-    .m-rpm-hero { text-align: center; margin-bottom: 16px; }
-    .m-rpm-num { font-size: 52px; font-weight: 700; color: var(--accent); line-height: 1; }
-    .m-rpm-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
-    .m-stats {
-      display: grid; grid-template-columns: 1fr 1fr 1fr;
-      gap: 8px; margin-bottom: 16px;
-    }
-    .stat { background: var(--subtle); border-radius: 8px; padding: 10px 12px; }
-    .stat-l { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
-    .stat-v { font-size: 16px; font-weight: 600; }
-
-    .chart-hdr {
-      font-size: 12px; font-weight: 600; color: var(--muted);
-      margin-bottom: 8px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .chart-hdr::before {
-      content: ""; display: inline-block;
-      width: 3px; height: 13px;
-      background: var(--accent); border-radius: 2px;
-    }
-    .chart-svg { display: block; width: 100%; overflow: visible; }
-    .chart-empty {
-      padding: 24px; text-align: center;
-      color: var(--muted); font-size: 13px;
-      background: var(--subtle); border-radius: 8px;
-    }
-
-    /* ── Loading ───────────────────────────────────────────────── */
-    #loading {
-      height: 100vh;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 10px;
-      color: var(--muted);
-    }
-    .ld-logo {
-      width: 44px; height: 44px;
-      background: var(--accent); color: var(--ink);
-      border-radius: 12px; font-size: 22px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 8px;
-    }
-    #loading p { font-size: 14px; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Vazirmatn',Tahoma,sans-serif; background:var(--bg); color:var(--text); direction:rtl; min-height:100vh; }
+    .hdr { background:#1c1917; color:#fff; padding:0 32px; height:64px; display:flex; align-items:center; justify-content:space-between; gap:16px; position:sticky; top:0; z-index:200; }
+    .hdr-brand { display:flex; align-items:center; gap:12px; }
+    .y-logo { width:34px; height:34px; background:var(--accent); color:#1c1917; border-radius:8px; font-size:17px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .hdr-name { font-size:15px; font-weight:600; }
+    .hdr-meta { font-size:11px; color:#a8a29e; margin-top:2px; }
+    .rpm-pill { background:var(--accent); color:#1c1917; padding:8px 16px; border-radius:10px; display:flex; align-items:baseline; gap:5px; flex-shrink:0; }
+    .rpm-pill-val { font-size:22px; font-weight:700; }
+    .rpm-pill-lbl { font-size:10px; font-weight:500; opacity:.7; }
+    .main { max-width:1120px; margin:0 auto; padding:28px 24px 64px; }
+    .sec-lbl { font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--muted); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .sec-lbl::before { content:''; display:block; width:3px; height:14px; background:var(--accent); border-radius:2px; }
+    .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:36px; }
+    .stat-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+    .stat-card-lbl { font-size:11px; color:var(--muted); margin-bottom:6px; }
+    .stat-card-val { font-size:26px; font-weight:700; line-height:1; }
+    .stat-card-unit { font-size:11px; color:var(--muted); margin-top:5px; }
+    .chart-section { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:22px 24px 18px; margin-bottom:28px; }
+    .chart-empty { padding:32px; text-align:center; color:var(--muted); font-size:13px; background:var(--subtle); border-radius:8px; }
+    .outlook-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:36px; }
+    .outlook-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; text-align:center; position:relative; }
+    .outlook-card.realistic { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+    .outlook-badge { position:absolute; top:12px; left:12px; font-size:10px; font-weight:600; background:var(--subtle); color:var(--muted); padding:3px 8px; border-radius:4px; }
+    .outlook-card.realistic .outlook-badge { background:var(--accent); color:#1c1917; }
+    .outlook-icon { font-size:30px; margin-bottom:6px; margin-top:6px; }
+    .outlook-title { font-size:13px; font-weight:600; color:var(--muted); margin-bottom:18px; }
+    .outlook-rpm { font-size:34px; font-weight:700; color:var(--accent); line-height:1; margin-bottom:4px; }
+    .outlook-rpm-lbl { font-size:10px; color:var(--muted); margin-bottom:14px; }
+    .outlook-divider { height:1px; background:var(--border); margin:14px 0; }
+    .outlook-revenue { font-size:19px; font-weight:600; }
+    .outlook-revenue-lbl { font-size:10px; color:var(--muted); margin-top:4px; }
+    .pos-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; }
+    details.pos-card { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:border-color .15s; }
+    details.pos-card[open] { border-color:var(--accent); }
+    summary.pos-summary { padding:14px 16px; display:flex; align-items:center; gap:12px; cursor:pointer; list-style:none; user-select:none; }
+    summary.pos-summary::-webkit-details-marker { display:none; }
+    .pos-icon { width:38px; height:38px; flex-shrink:0; background:var(--subtle); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--muted); }
+    .pos-info { flex:1; min-width:0; }
+    .pos-name { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:2px; }
+    .pos-sub { font-size:10px; color:var(--muted); }
+    .pos-spark { width:72px; height:26px; flex-shrink:0; }
+    .pos-rpm-col { text-align:left; flex-shrink:0; min-width:56px; }
+    .pos-rpm-val { font-size:18px; font-weight:700; color:var(--accent); line-height:1; }
+    .pos-rpm-unit { font-size:9px; color:var(--muted); }
+    .pos-expand { padding:4px 16px 14px; border-top:1px solid var(--border); }
+    .pos-expand-lbl { font-size:10px; font-weight:600; color:var(--muted); margin:10px 0 8px; letter-spacing:.04em; }
+    .pos-no-data { opacity:.5; }
+    .pos-no-data summary { cursor:default; }
+    #loading { height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted); }
+    .ld-logo { width:50px; height:50px; background:var(--accent); color:#1c1917; border-radius:13px; font-size:25px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-bottom:4px; }
+    #loading p { font-size:14px; }
+    @media (max-width:640px) { .outlook-row{grid-template-columns:1fr} .hdr{padding:0 16px;height:56px} .main{padding:16px 14px 40px} }
   </style>
 </head>
 <body>
-
-<div id="loading">
-  <div class="ld-logo">Y</div>
-  <p>در حال بارگذاری گزارش...</p>
-</div>
-
+<div id="loading"><div class="ld-logo">Y</div><p>در حال بارگذاری گزارش...</p></div>
 <div id="root" style="display:none;"></div>
-
-<div id="overlay" class="overlay">
-  <div class="mbox">
-    <div class="mhdr">
-      <div>
-        <div class="mhdr-pid" id="m-pid"></div>
-        <div class="mhdr-name" id="m-name"></div>
-      </div>
-      <button class="mbtn-close" id="m-close">✕</button>
-    </div>
-    <div class="mbody" id="m-body"></div>
-  </div>
-</div>
-
 <script>
-(function () {
-  'use strict';
+(function(){
+'use strict';
+var MONTHS=['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+function gToJ(gy,gm,gd){gy-=1600;gm-=1;gd-=1;var g=365*gy+Math.floor((gy+3)/4)-Math.floor((gy+99)/100)+Math.floor((gy+399)/400);[31,28,31,30,31,30,31,31,30,31,30,31].forEach(function(v,i){if(i<gm)g+=v;});if(gm>1&&((gy%4===0&&gy%100!==0)||gy%400===0))g++;g+=gd;var j=g-79,jp=Math.floor(j/12053);j%=12053;var jy=979+33*jp+4*Math.floor(j/1461);j%=1461;if(j>=366){jy+=Math.floor((j-1)/365);j=(j-1)%365;}var jm=0,jd=[31,31,31,31,31,31,30,30,30,30,30,29];while(jm<11&&j>=jd[jm]){j-=jd[jm];jm++;}return{y:jy,m:jm+1,d:j+1};}
+function p2(n){return String(n).padStart(2,'0');}
+function toFa(s){return String(s).replace(/[0-9]/g,function(d){return '۰۱۲۳۴۵۶۷۸۹'[+d];});}
+function fmtRpm(n){return n!=null?toFa((Math.round(n*100)/100).toFixed(2)):'—';}
+function fmtNum(n){return n!=null?toFa(Math.round(n).toLocaleString('en')):'—';}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function isoToJ(iso){var p=iso.split('-').map(Number);return gToJ(p[0],p[1],p[2]);}
 
-  function toFa(s) {
-    return String(s).replace(/[0-9]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'[+d]; });
+function computePubDaily(matched){
+  var b={};
+  matched.forEach(function(pos){(pos.rows||[]).forEach(function(r){if(!b[r[0]])b[r[0]]={adv:0,pv:0};b[r[0]].adv+=r[1];b[r[0]].pv=Math.max(b[r[0]].pv,r[2]);});});
+  return b;
+}
+function groupByMonth(byDate){
+  var acc={};
+  Object.keys(byDate).sort().forEach(function(date){var d=byDate[date];if(d.pv<=0)return;var j=isoToJ(date);var key=j.y+'/'+p2(j.m);if(!acc[key])acc[key]={adv:0,pv:0,days:0,jy:j.y,jm:j.m};acc[key].adv+=d.adv;acc[key].pv+=d.pv;acc[key].days++;});
+  return Object.keys(acc).sort().map(function(key){var m=acc[key];return{key:key,label:MONTHS[m.jm-1],rpm:m.adv/m.pv,avgPv:Math.round(m.pv/m.days),totalAdv:m.adv,days:m.days};});
+}
+function groupPosRowsByMonth(rows){
+  var acc={};
+  (rows||[]).forEach(function(r){if(r[2]<=0)return;var j=isoToJ(r[0]);var key=j.y+'/'+p2(j.m);if(!acc[key])acc[key]={adv:0,pv:0,days:0,jy:j.y,jm:j.m};acc[key].adv+=r[1];acc[key].pv+=r[2];acc[key].days++;});
+  return Object.keys(acc).sort().map(function(key){var m=acc[key];return{key:key,label:MONTHS[m.jm-1],rpm:m.adv/m.pv,days:m.days};});
+}
+function computeOutlook(byDate){
+  var vals=Object.keys(byDate).map(function(k){return byDate[k];}).filter(function(d){return d.pv>0;});
+  if(vals.length<5)return null;
+  var rpms=vals.map(function(d){return d.adv/d.pv;}).sort(function(a,b){return a-b;});
+  var avgPv=vals.map(function(d){return d.pv;}).reduce(function(s,v){return s+v;},0)/vals.length;
+  var n=rpms.length;
+  return{pessimistic:{rpm:rpms[Math.floor(n*.2)],monthly:rpms[Math.floor(n*.2)]*avgPv*30},realistic:{rpm:rpms[Math.floor(n*.5)],monthly:rpms[Math.floor(n*.5)]*avgPv*30},optimistic:{rpm:rpms[Math.floor(n*.8)],monthly:rpms[Math.floor(n*.8)]*avgPv*30},avgPv:avgPv};
+}
+
+function makeLineSvg(months,W,H,opts){
+  if(!months||months.length<2)return '<div class="chart-empty">داده کافی برای نمایش نمودار وجود ندارد</div>';
+  opts=opts||{};var pL=opts.pL||52,pR=opts.pR||14,pT=opts.pT||14,pB=opts.pB||42;
+  var cW=W-pL-pR,cH=H-pT-pB;
+  var rpms=months.map(function(m){return m.rpm;});
+  var mn=Math.min.apply(null,rpms),mx=Math.max.apply(null,rpms),rng=mx-mn||.01;
+  var coords=months.map(function(m,i){return{x:pL+(i/Math.max(months.length-1,1))*cW,y:pT+(1-(m.rpm-mn)/rng)*cH,label:m.label};});
+  var line=coords.map(function(c,i){return(i===0?'M':'L')+c.x.toFixed(1)+','+c.y.toFixed(1);}).join(' ');
+  var area=line+' L'+coords[coords.length-1].x.toFixed(1)+','+(pT+cH)+' L'+pL+','+(pT+cH)+' Z';
+  var gridLines='',yLabels='';
+  for(var ti=0;ti<=4;ti++){var t=ti/4,yy=pT+(1-t)*cH,val=mn+t*rng;gridLines+='<line x1="'+pL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+yy.toFixed(1)+'" stroke="currentColor" stroke-opacity="0.07" stroke-width="1"/>';yLabels+='<text x="'+(pL-5)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.55">'+toFa(val.toFixed(1))+'</text>';}
+  var xLabels='',step=months.length<=10?1:Math.ceil(months.length/10);
+  coords.forEach(function(c,i){if(i%step!==0&&i!==months.length-1)return;xLabels+='<text x="'+c.x.toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.6">'+c.label+'</text>';});
+  var dots=coords.map(function(c){return'<circle cx="'+c.x.toFixed(1)+'" cy="'+c.y.toFixed(1)+'" r="3.5" fill="#FED049" stroke="var(--card)" stroke-width="2"/>';}).join('');
+  var gid='g'+Math.random().toString(36).slice(2,9);
+  return'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;display:block;overflow:visible" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FED049" stop-opacity="0.28"/><stop offset="100%" stop-color="#FED049" stop-opacity="0"/></linearGradient></defs>'+gridLines+'<path d="'+area+'" fill="url(#'+gid+')"/><path d="'+line+'" fill="none" stroke="#FED049" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+dots+yLabels+xLabels+'</svg>';
+}
+function makeSparkSvg(months,W,H){
+  if(!months||months.length<2)return'';
+  var rpms=months.map(function(m){return m.rpm;});
+  var mn=Math.min.apply(null,rpms),mx=Math.max.apply(null,rpms),rng=mx-mn||.01;
+  var pts=rpms.map(function(v,i){var x=(i/(rpms.length-1))*W,y=H-((v-mn)/rng)*(H-3)-1.5;return(i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1);}).join(' ');
+  return'<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="display:block" xmlns="http://www.w3.org/2000/svg"><path d="'+pts+' L'+W+','+H+' L0,'+H+' Z" fill="#FED049" fill-opacity="0.22"/><path d="'+pts+'" fill="none" stroke="#FED049" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+}
+
+function render(d){
+  var root=document.getElementById('root');
+  var pubDaily=computePubDaily(d.matched||[]);
+  var pubMonths=groupByMonth(pubDaily);
+  var outlook=computeOutlook(pubDaily);
+  var totalAdv=Object.keys(pubDaily).reduce(function(s,k){return s+pubDaily[k].adv;},0);
+  var pvVals=Object.keys(pubDaily).filter(function(k){return pubDaily[k].pv>0;}).map(function(k){return pubDaily[k].pv;});
+  var avgDailyPv=pvVals.length?pvVals.reduce(function(s,v){return s+v;},0)/pvVals.length:0;
+  var html='';
+  html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">Y</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.appId||'')+'&nbsp;·&nbsp;'+toFa((d.from||'').replace(/-/g,'/'))+'&nbsp;—&nbsp;'+toFa((d.to||'').replace(/-/g,'/'))+'</div></div></div><div class="rpm-pill"><span class="rpm-pill-val">'+fmtRpm(d.totalRpm)+'</span><span class="rpm-pill-lbl">میانگین RPM</span></div></div>';
+  html+='<div class="main">';
+  html+='<div class="stats-row"><div class="stat-card"><div class="stat-card-lbl">میانگین RPM</div><div class="stat-card-val">'+fmtRpm(d.totalRpm)+'</div><div class="stat-card-unit">K تومان / ۱K نمایش</div></div><div class="stat-card"><div class="stat-card-lbl">جایگاه‌های فعال</div><div class="stat-card-val">'+toFa((d.matched||[]).length)+'</div><div class="stat-card-unit">جایگاه دارای داده</div></div><div class="stat-card"><div class="stat-card-lbl">میانگین PV روزانه</div><div class="stat-card-val">'+fmtNum(avgDailyPv)+'</div><div class="stat-card-unit">بازدید در روز</div></div><div class="stat-card"><div class="stat-card-lbl">مجموع هزینه تبلیغات</div><div class="stat-card-val" style="font-size:18px">'+fmtNum(totalAdv)+'</div><div class="stat-card-unit">تومان در بازه انتخابی</div></div></div>';
+  html+='<div class="sec-lbl">ترند ماهانه RPM ناشر</div>';
+  html+='<div class="chart-section">'+makeLineSvg(pubMonths,960,210,{pL:54,pR:16,pT:14,pB:44})+'</div>';
+  if(outlook){
+    html+='<div class="sec-lbl">چشم‌انداز درآمدی</div><div class="outlook-row">';
+    [{key:'pessimistic',icon:'📉',title:'بدبینانه',badge:'پرسنتایل ۲۰ام',data:outlook.pessimistic},{key:'realistic',icon:'📊',title:'واقع‌بینانه',badge:'پرسنتایل ۵۰ام',data:outlook.realistic},{key:'optimistic',icon:'📈',title:'خوش‌بینانه',badge:'پرسنتایل ۸۰ام',data:outlook.optimistic}].forEach(function(item){
+      html+='<div class="outlook-card'+(item.key==='realistic'?' realistic':'')+'" ><div class="outlook-badge">'+item.badge+'</div><div class="outlook-icon">'+item.icon+'</div><div class="outlook-title">'+item.title+'</div><div class="outlook-rpm">'+fmtRpm(item.data.rpm)+'</div><div class="outlook-rpm-lbl">K تومان / ۱K نمایش</div><div class="outlook-divider"></div><div class="outlook-revenue">'+fmtNum(item.data.monthly)+'</div><div class="outlook-revenue-lbl">تومان / ماه (تخمینی)</div></div>';
+    });
+    html+='</div>';
   }
-  function fmtRpm(n) { return n != null ? toFa((Math.round(n * 100) / 100).toFixed(2)) : '—'; }
-  function fmtNum(n) { return n != null ? toFa(Math.round(n).toLocaleString('en')) : '—'; }
-  function fmtDate(iso) { return iso ? toFa(iso.replace(/-/g, '/')) : ''; }
-
-  var data = null;
-
-  chrome.storage.local.get('ynprice_report', function (result) {
-    document.getElementById('loading').style.display = 'none';
-    if (!result.ynprice_report) {
-      document.getElementById('root').style.display = '';
-      document.getElementById('root').innerHTML =
-        '<div style="height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">' +
-        '<div style="font-size:48px">😕</div>' +
-        '<div style="font-size:16px;font-weight:600;">گزارشی یافت نشد</div>' +
-        '<div style="font-size:13px;color:var(--muted);">لطفاً دوباره از اکستنشن گزارش بگیرید.</div>' +
-        '</div>';
-      return;
-    }
-    data = result.ynprice_report;
-    render(data);
-    document.getElementById('root').style.display = '';
+  html+='<div class="sec-lbl">جایگاه‌های تبلیغاتی ('+toFa((d.matched||[]).length)+' جایگاه)</div><div class="pos-grid" id="pos-grid"></div></div>';
+  root.innerHTML=html;
+  var grid=document.getElementById('pos-grid');
+  (d.matched||[]).slice().sort(function(a,b){return(b.rpm||0)-(a.rpm||0);}).forEach(function(item){
+    var posMonths=groupPosRowsByMonth(item.rows||[]);
+    var det=document.createElement('details');
+    det.className='pos-card'+(item.rpm==null?' pos-no-data':'');
+    det.innerHTML='<summary class="pos-summary"><div class="pos-icon">'+esc((item.positionType||item.positionId||'').slice(0,4).toUpperCase())+'</div><div class="pos-info"><div class="pos-name">'+esc(item.description||('جایگاه '+item.positionId))+'</div><div class="pos-sub">ynpos-'+toFa(item.positionId)+(item.rowCount?'&nbsp;·&nbsp;'+toFa(item.rowCount)+' روز':'')+'</div></div><div class="pos-spark">'+makeSparkSvg(posMonths,72,26)+'</div><div class="pos-rpm-col">'+(item.rpm!=null?'<div class="pos-rpm-val">'+fmtRpm(item.rpm)+'</div><div class="pos-rpm-unit">K تومان</div>':'<div class="pos-rpm-unit" style="color:var(--muted)">بدون داده</div>')+'</div></summary><div class="pos-expand"><div class="pos-expand-lbl">ترند ماهانه RPM این جایگاه</div>'+makeLineSvg(posMonths,620,160,{pL:48,pR:12,pT:10,pB:36})+'</div>';
+    grid.appendChild(det);
   });
-
-  // ── Render ────────────────────────────────────────────────────
-  function render(d) {
-    var root = document.getElementById('root');
-
-    var hdr = document.createElement('div');
-    hdr.className = 'hdr';
-    hdr.innerHTML =
-      '<div class="hdr-brand">' +
-        '<div class="y-logo">Y</div>' +
-        '<div>' +
-          '<div class="hdr-name">' + esc(d.publisherName || 'گزارش ناشر') + '</div>' +
-          '<div class="hdr-meta">' + fmtDate(d.from) + ' — ' + fmtDate(d.to) + ' &nbsp;·&nbsp; ' + esc(d.appId) + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="rpm-pill">' +
-        '<span class="rpm-pill-val">' + fmtRpm(d.totalRpm) + '</span>' +
-        '<span class="rpm-pill-unit">K تومان / ۱K</span>' +
-      '</div>';
-    root.appendChild(hdr);
-
-    var wrap = document.createElement('div');
-    wrap.className = 'grid-wrap';
-    wrap.innerHTML =
-      '<div class="grid-head">جایگاه‌های شناسایی‌شده &nbsp;·&nbsp; ' +
-      toFa(d.matched.length) + ' جایگاه</div>';
-
-    var grid = document.createElement('div');
-    grid.className = 'grid';
-
-    d.matched.forEach(function (item, idx) {
-      grid.appendChild(makeCard(item, idx));
-    });
-
-    (d.unmatched || []).forEach(function (pid) {
-      var card = document.createElement('div');
-      card.className = 'card no-data';
-      card.innerHTML =
-        '<div class="card-placeholder">—</div>' +
-        '<div class="card-body">' +
-          '<div class="card-pid">ynpos-' + toFa(pid) + '</div>' +
-          '<div class="card-label">جایگاه ' + toFa(pid) + '</div>' +
-          '<div class="card-rpm na">بدون داده</div>' +
-        '</div>';
-      grid.appendChild(card);
-    });
-
-    wrap.appendChild(grid);
-    root.appendChild(wrap);
-  }
-
-  function makeCard(item, idx) {
-    var card = document.createElement('div');
-    var cn = 'card';
-    if (item.rpm == null) cn += ' no-data';
-    card.className = cn;
-    if (item.rpm != null) card.onclick = function () { openModal(idx); };
-
-    var thumb = item.screenshot
-      ? '<img class="card-thumb" src="' + item.screenshot + '" loading="lazy" />'
-      : '<div class="card-placeholder">' + (item.mobileOnly ? '📱' : '📷') + '</div>';
-
-    var rpmHtml = item.rpm != null
-      ? '<div class="card-rpm">' + fmtRpm(item.rpm) + '</div>' +
-        '<div class="card-rpm-unit">K تومان / ۱K نمایش</div>'
-      : '<div class="card-rpm na">بدون داده</div>';
-
-    var chips = '';
-    if (item.rowCount) chips += '<span class="chip">' + toFa(item.rowCount) + ' روز</span>';
-    if (item.positionType) chips += '<span class="chip">' + esc(item.positionType) + '</span>';
-    if (item.mobileOnly) chips += '<span class="chip">موبایل</span>';
-
-    card.innerHTML =
-      thumb +
-      '<div class="card-body">' +
-        '<div class="card-pid">ynpos-' + toFa(item.positionId) + '</div>' +
-        '<div class="card-label">' + esc(item.description || 'جایگاه ' + item.positionId) + '</div>' +
-        rpmHtml +
-        (chips ? '<div class="card-chips">' + chips + '</div>' : '') +
-      '</div>';
-    return card;
-  }
-
-  // ── Modal ─────────────────────────────────────────────────────
-  function openModal(idx) {
-    var item = data.matched[idx];
-
-    document.getElementById('m-pid').textContent = 'ynpos-' + item.positionId;
-    document.getElementById('m-name').textContent = item.description || ('جایگاه ' + item.positionId);
-
-    var body = document.getElementById('m-body');
-
-    var imgHtml = item.screenshot
-      ? '<img class="m-screenshot" src="' + item.screenshot + '" />'
-      : '<div class="m-no-img">' + (item.mobileOnly ? '📱' : '📷') + '</div>';
-
-    var avgPv = item.rowCount ? Math.round((item.totalPv || 0) / item.rowCount) : 0;
-
-    body.innerHTML =
-      imgHtml +
-      '<div class="m-rpm-hero">' +
-        '<div class="m-rpm-num">' + fmtRpm(item.rpm) + '</div>' +
-        '<div class="m-rpm-label">میانگین RPM · هزار تومان به ازای ۱,۰۰۰ نمایش</div>' +
-      '</div>' +
-      '<div class="m-stats">' +
-        '<div class="stat"><div class="stat-l">روزهای داده</div><div class="stat-v">' + toFa(item.rowCount || 0) + '</div></div>' +
-        '<div class="stat"><div class="stat-l">میانگین PV/روز</div><div class="stat-v">' + fmtNum(avgPv) + '</div></div>' +
-        '<div class="stat"><div class="stat-l">مجموع هزینه تبلیغات</div><div class="stat-v" style="font-size:13px">' + fmtNum(item.totalAdv) + '</div></div>' +
-      '</div>' +
-      '<div class="chart-hdr">هیستوری روزانه RPM</div>' +
-      buildChart(item.rows || []);
-
-    document.getElementById('overlay').classList.add('open');
-  }
-
-  // ── History chart ─────────────────────────────────────────────
-  function buildChart(rows) {
-    var pts = rows
-      .filter(function (r) { return r[2] > 0; })
-      .map(function (r) { return { date: r[0], rpm: r[1] / r[2] }; })
-      .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-
-    if (pts.length < 2) {
-      return '<div class="chart-empty">داده‌ی کافی برای نمایش نمودار وجود ندارد</div>';
-    }
-
-    var W = 640, H = 150, pL = 52, pR = 12, pT = 12, pB = 36;
-    var cW = W - pL - pR, cH = H - pT - pB;
-
-    var rpms = pts.map(function (p) { return p.rpm; });
-    var mn = Math.min.apply(null, rpms);
-    var mx = Math.max.apply(null, rpms);
-    var rng = mx - mn || 1;
-
-    var coords = pts.map(function (p, i) {
-      return {
-        x: pL + (i / (pts.length - 1)) * cW,
-        y: pT + (1 - (p.rpm - mn) / rng) * cH,
-        date: p.date
-      };
-    });
-
-    var linePath = coords.map(function (c, i) {
-      return (i === 0 ? 'M' : 'L') + c.x.toFixed(1) + ',' + c.y.toFixed(1);
-    }).join(' ');
-
-    var areaPath = linePath +
-      ' L' + coords[coords.length - 1].x.toFixed(1) + ',' + (pT + cH) +
-      ' L' + pL + ',' + (pT + cH) + ' Z';
-
-    var yTicks = [0, 0.25, 0.5, 0.75, 1].map(function (t) {
-      return { y: pT + (1 - t) * cH, label: toFa(Math.round(mn + t * rng)) };
-    });
-
-    var xCount = Math.min(6, pts.length);
-    var xIdxs = [];
-    for (var j = 0; j < xCount; j++) {
-      xIdxs.push(Math.round(j / Math.max(xCount - 1, 1) * (pts.length - 1)));
-    }
-
-    var gridLines = yTicks.map(function (t) {
-      return '<line x1="' + pL + '" y1="' + t.y.toFixed(1) +
-        '" x2="' + (W - pR) + '" y2="' + t.y.toFixed(1) +
-        '" stroke="currentColor" stroke-opacity="0.08" stroke-width="1"/>';
-    }).join('');
-
-    var yLabels = yTicks.map(function (t) {
-      return '<text x="' + (pL - 5) + '" y="' + (t.y + 4).toFixed(1) +
-        '" text-anchor="end" font-size="10" fill="currentColor" opacity="0.5">' +
-        t.label + '</text>';
-    }).join('');
-
-    var xLabels = xIdxs.map(function (i) {
-      var c = coords[i];
-      return '<text x="' + c.x.toFixed(1) + '" y="' + (H - 6) +
-        '" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5">' +
-        toFa(c.date.slice(5)) + '</text>';
-    }).join('');
-
-    return '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H +
-      '" xmlns="http://www.w3.org/2000/svg">' +
-      '<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="#FED049" stop-opacity="0.35"/>' +
-      '<stop offset="100%" stop-color="#FED049" stop-opacity="0"/>' +
-      '</linearGradient></defs>' +
-      gridLines +
-      '<path d="' + areaPath + '" fill="url(#cg)"/>' +
-      '<path d="' + linePath + '" fill="none" stroke="#FED049" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
-      yLabels + xLabels +
-      '</svg>';
-  }
-
-  function esc(s) {
-    return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  document.getElementById('m-close').addEventListener('click', function () {
-    document.getElementById('overlay').classList.remove('open');
+  (d.unmatched||[]).forEach(function(pid){
+    var det=document.createElement('details');det.className='pos-card pos-no-data';
+    det.innerHTML='<summary class="pos-summary"><div class="pos-icon" style="font-size:18px">—</div><div class="pos-info"><div class="pos-name">جایگاه '+toFa(pid)+'</div><div class="pos-sub">ynpos-'+toFa(pid)+'&nbsp;·&nbsp;بدون داده در این بازه</div></div><div class="pos-rpm-col"><div class="pos-rpm-unit" style="color:var(--muted)">—</div></div></summary>';
+    grid.appendChild(det);
   });
-  document.getElementById('overlay').addEventListener('click', function (e) {
-    if (e.target === this) document.getElementById('overlay').classList.remove('open');
-  });
+}
+
+chrome.storage.local.get('ynprice_report',function(result){
+  document.getElementById('loading').style.display='none';
+  if(!result.ynprice_report){
+    document.getElementById('root').style.display='';
+    document.getElementById('root').innerHTML='<div style="height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div style="font-size:52px">😕</div><div style="font-size:18px;font-weight:600">گزارشی یافت نشد</div><div style="font-size:13px;color:var(--muted)">لطفاً دوباره از اکستنشن گزارش بگیرید</div></div>';
+    return;
+  }
+  render(result.ynprice_report);
+  document.getElementById('root').style.display='';
+});
 })();
 </script>
 </body>

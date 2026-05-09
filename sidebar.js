@@ -68,44 +68,24 @@
     var btn=$("more-btn");
     btn.classList.add("reporting");
     btn.querySelector(".cta-btn-main").textContent="⏳ در حال تهیه گزارش...";
-
     try{
-      var tabs=await chrome.tabs.query({active:true,currentWindow:true});
-      var tabId=tabs[0]&&tabs[0].id;
-
-      // Build and store the base report immediately (no screenshots yet)
-      var baseReport={
-        matched:analysisResult.matched.map(function(p){
-          return Object.assign({},p,{screenshot:null,mobileOnly:!p.foundOnPage});
-        }),
+      var report={
+        matched:analysisResult.matched,
         unmatched:analysisResult.unmatched,
         totalRpm:analysisResult.totalRpm,
         publisherName:analysisResult.publisherName,
         from:analysisResult.from,to:analysisResult.to,
         appId:analysisResult.appId,
+        allPositionCount:analysisResult.allPositionCount,
         pageTitle:scanResult.pageTitle,pageUrl:scanResult.pageUrl,
         generatedAt:new Date().toISOString(),
       };
       await new Promise(function(resolve){
-        chrome.storage.local.set({ynprice_report:baseReport},resolve);
+        chrome.storage.local.set({ynprice_report:report},resolve);
       });
-
-      // Open report viewer NOW — don't wait for screenshots
       chrome.tabs.create({url:chrome.runtime.getURL("report-viewer.html")});
       btn.classList.remove("reporting");
       btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
-
-      // Fire screenshot job in background (fire-and-forget via content script)
-      if(tabId){
-        var screenshotIds=analysisResult.matched
-          .filter(function(p){return p.foundOnPage;})
-          .map(function(p){return p.positionId;});
-        if(screenshotIds.length>0){
-          // Respond immediately so channel doesn't hang; content.js patches storage
-          chrome.tabs.sendMessage(tabId,{type:"TAKE_SCREENSHOTS",positionIds:screenshotIds},
-            function(){ if(chrome.runtime.lastError){/* ignore */} });
-        }
-      }
     }catch(e){
       console.error("Report error:",e);
       btn.classList.remove("reporting");
