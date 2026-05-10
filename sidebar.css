@@ -355,12 +355,20 @@ header {
 .pos-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); border-color: rgba(229,57,53,.4); }
 .pos-card.no-data { opacity: .5; }
 @keyframes pos-shake {
-  0%,100% { transform: translateX(0); }
-  20% { transform: translateX(-5px); }
-  60% { transform: translateX(5px); }
-  80% { transform: translateX(-3px); }
+  0%   { transform:translateX(0); }
+  10%  { transform:translateX(-8px); background:rgba(229,57,53,0.18); }
+  25%  { transform:translateX(8px);  background:rgba(229,57,53,0.28); }
+  40%  { transform:translateX(-6px); background:rgba(229,57,53,0.22); }
+  55%  { transform:translateX(6px); }
+  70%  { transform:translateX(-3px); background:rgba(229,57,53,0.12); }
+  85%  { transform:translateX(2px); }
+  100% { transform:translateX(0); }
 }
-.pos-card-notfound { animation: pos-shake 0.5s ease; border-color: #e53935 !important; }
+.pos-card-notfound {
+  animation: pos-shake 0.65s ease;
+  border-color: #e53935 !important;
+  box-shadow: 0 0 0 3px rgba(229,57,53,0.25), 0 0 16px rgba(229,57,53,0.2) !important;
+}
 .pos-found-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
 .pos-found-on  { background: #10b981; }
 .pos-found-off { background: var(--border); }
