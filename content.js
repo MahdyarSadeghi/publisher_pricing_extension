@@ -177,6 +177,26 @@
         left = elRect.left;
       }
 
+      // If the element is hidden behind the sidebar panel, slide the sidebar away
+      // so the user can actually see the highlight
+      const sidebarRect = container.getBoundingClientRect();
+      const hiddenBySidebar =
+        left + Math.max(elRect.width, 60) > sidebarRect.left &&
+        left < sidebarRect.right &&
+        top  + Math.max(elRect.height, 30) > sidebarRect.top &&
+        top  < sidebarRect.bottom;
+
+      if (hiddenBySidebar) {
+        container.style.transition = "transform 0.28s ease";
+        container.style.transform  = "translateX(100%)";
+        // Slide back in after highlight fades
+        setTimeout(function() {
+          container.style.transition = "transform 0.35s ease";
+          container.style.transform  = "";
+          setTimeout(function(){ container.style.transition = ""; }, 360);
+        }, 2700);
+      }
+
       // Ensure minimum size so even empty placeholder divs are visible
       const w = Math.max(elRect.width,  60);
       const h = Math.max(elRect.height, 30);
