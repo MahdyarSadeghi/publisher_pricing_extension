@@ -406,7 +406,7 @@
       var label=item.description||("ynpos-"+item.positionId);
       var found=item.foundOnPage;
       var dev=item.device||null;
-      var devLbl=dev==="mobile"||dev==="mob"?"موبایل":dev==="desktop"||dev==="desk"?"دسکتاپ":null;
+      var devLbl=dev==="mobile"||dev==="mob"?"فقط موبایل":dev==="desktop"||dev==="desk"?"فقط دسکتاپ":null;
       var devHtml=devLbl?'<span class="pos-device-badge pos-device-'+dev+'">'+devLbl+'</span>':'';
       var dotCls=found?"pos-found-on":"pos-found-off";
       var dotTitle=found?"روی این صفحه موجوده":"در این صفحه یافت نشد";
@@ -450,7 +450,7 @@
       card.setAttribute("data-posid",item.positionId);
       var label=item.description||("ynpos-"+item.positionId);
       var dev=item.device||null;
-      var devLbl=dev==="mobile"||dev==="mob"?"موبایل":dev==="desktop"||dev==="desk"?"دسکتاپ":null;
+      var devLbl=dev==="mobile"||dev==="mob"?"فقط موبایل":dev==="desktop"||dev==="desk"?"فقط دسکتاپ":null;
       var devHtml=devLbl?'<span class="pos-device-badge pos-device-'+dev+'">'+devLbl+'</span>':'';
       card.innerHTML=
         '<div class="pos-icon">—</div>'+
