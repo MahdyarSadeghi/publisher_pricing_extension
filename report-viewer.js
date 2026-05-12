@@ -377,7 +377,7 @@ function render(d){
   var posStats=computePositionStats(),pubPct=computePubPercentiles(bd);
   var html='';
   // Header — no RPM pill
-  html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">Y</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.appId||'')+'&nbsp;&middot;&nbsp;'+esc(d.pageTitle||'')+'</div></div></div></div>';
+  html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">ن</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.appId||'')+'&nbsp;&middot;&nbsp;'+esc(d.pageTitle||'')+'</div></div></div></div>';
   html+=buildFilterBar();
   html+='<div class="main">';
   html+='<div class="stats-row">'+
