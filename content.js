@@ -1,9 +1,32 @@
 (function () {
+  const SIDEBAR_W = 360;
+  const _ynShifted = [];
+
+  function shiftFixed(enable) {
+    if (enable) {
+      document.querySelectorAll('body *').forEach(function(el) {
+        if (el.id && el.id.startsWith('ynprice-')) return;
+        var cs = window.getComputedStyle(el);
+        if (cs.position !== 'fixed') return;
+        var rightVal = parseFloat(cs.right);
+        if (isNaN(rightVal)) return;
+        if (el.getBoundingClientRect().right > window.innerWidth - SIDEBAR_W) {
+          _ynShifted.push({ el: el, orig: el.style.right });
+          el.style.right = (rightVal + SIDEBAR_W) + 'px';
+        }
+      });
+    } else {
+      _ynShifted.forEach(function(item) { item.el.style.right = item.orig; });
+      _ynShifted.length = 0;
+    }
+  }
+
   if (document.getElementById("ynprice-sidebar-container")) {
     const el = document.getElementById("ynprice-sidebar-container");
     const opening = el.style.display === "none";
     el.style.display = opening ? "block" : "none";
-    document.documentElement.style.marginRight = opening ? "360px" : "";
+    document.documentElement.style.marginRight = opening ? SIDEBAR_W + "px" : "";
+    shiftFixed(opening);
     return;
   }
 
@@ -95,8 +118,6 @@
   }
 
   // ── Sidebar iframe ───────────────────────────────────────────
-  const SIDEBAR_W = 360;
-
   const container = document.createElement("div");
   container.id = "ynprice-sidebar-container";
   container.style.cssText =
@@ -108,9 +129,10 @@
   container.appendChild(iframe);
   document.body.appendChild(container);
 
-  // Push page content to the left so sidebar sits beside it
+  // Push page content and right-fixed elements away from sidebar
   document.documentElement.style.transition = "margin-right 0.25s ease";
   document.documentElement.style.marginRight = SIDEBAR_W + "px";
+  shiftFixed(true);
 
   const scanData = scanPage();
 
@@ -130,6 +152,7 @@
   function hideSidebar() {
     container.style.display = "none";
     document.documentElement.style.marginRight = "";
+    shiftFixed(false);
   }
 
   window.addEventListener("message", (event) => {
