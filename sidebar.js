@@ -39,12 +39,48 @@
   function fmtPct(n){return (n>=0?"↑ ":"↓ ")+toFa(Math.abs(n).toFixed(1))+"٪";}
 
   // ── State ─────────────────────────────────────────────────────
-  var allData    = null;
-  var scanResult = null;
+  var scanResult     = null;
   var analysisResult = null;
 
   // ── DOM ───────────────────────────────────────────────────────
   function $(id){return document.getElementById(id);}
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function sendMsg(msg) {
+    return new Promise(function(resolve) {
+      chrome.runtime.sendMessage(msg, function(resp) {
+        if (chrome.runtime.lastError) resolve({ error: chrome.runtime.lastError.message });
+        else resolve(resp || {});
+      });
+    });
+  }
+
+  function setDataStatus(text, cls) {
+    var ds = $('data-status');
+    ds.textContent = text;
+    ds.className = 'data-status' + (cls ? ' ' + cls : '');
+  }
+
+  // Convert flat Trino rows → { publisher_name, positions: { [posId]: { desc, type, rows: [[date,cost,pv,device]] } } }
+  function trinoToAppData(columns, rows) {
+    var ci = {};
+    columns.forEach(function(c, i) { ci[c.name.toLowerCase()] = i; });
+    var positions = {}, publisherName = '';
+    rows.forEach(function(row) {
+      var posId = String(row[ci.position_id] != null ? row[ci.position_id] : '');
+      if (!posId) return;
+      publisherName = String(row[ci.publisher_name] || publisherName);
+      var date   = String(row[ci.date]   || '');
+      var cost   = Number(row[ci.total_adv_cost]) || 0;
+      var pv     = Number(row[ci.page_views])     || 0;
+      var device = row[ci.device] != null ? String(row[ci.device]).toLowerCase() : null;
+      var desc   = row[ci.description]   != null ? String(row[ci.description])   : '';
+      var type   = row[ci.position_type] != null ? String(row[ci.position_type]) : '';
+      if (!positions[posId]) positions[posId] = { desc: desc, type: type, rows: [] };
+      positions[posId].rows.push([date, cost, pv, device]);
+    });
+    return { publisher_name: publisherName, positions: positions };
+  }
 
   // ── Events ────────────────────────────────────────────────────
   $("close-btn").addEventListener("click",function(){
@@ -58,9 +94,61 @@
     }
   });
 
-  $("analyze-btn").addEventListener("click",function(){
-    if(!allData||!scanResult||!scanResult.appId) return;
-    runAnalysis();
+  $("analyze-btn").addEventListener("click", async function() {
+    if (!scanResult || !scanResult.appId) return;
+    var btn = this;
+    btn.disabled = true;
+
+    var range = getDateRange();
+    var appId = scanResult.appId;
+
+    // 1. Ensure authenticated
+    var status = await sendMsg({ type: 'GET_AUTH_STATUS' });
+    if (!status.authed) {
+      setDataStatus('⏳ در حال احراز هویت… لطفاً در مرورگر وارد شوید', '');
+      var auth = await sendMsg({ type: 'START_AUTH' });
+      if (auth.error) {
+        setDataStatus('خطا در احراز هویت: ' + auth.error, 'err');
+        btn.disabled = false;
+        return;
+      }
+      setDataStatus('✓ وارد شده‌اید', 'ok');
+    }
+
+    // 2. Validate appId (alphanumeric, dash, underscore only) to prevent injection
+    if (!/^[A-Za-z0-9_-]+$/.test(appId)) {
+      setDataStatus('App ID نامعتبر', 'err');
+      btn.disabled = false;
+      return;
+    }
+
+    // 3. Query Trino
+    setDataStatus('⏳ در حال دریافت داده از پایگاه داده…', '');
+    var sql =
+      "SELECT * FROM hafez.data_operation.nashereman" +
+      " WHERE app_id = '" + appId + "'" +
+      " AND date >= '" + range.from + "'" +
+      " AND date <= '" + range.to + "'";
+    var result = await sendMsg({ type: 'QUERY_TRINO', sql: sql });
+    btn.disabled = false;
+
+    if (result.error) {
+      if (result.error === 'not_authed') {
+        chrome.storage.local.remove(['ynprice_token', 'ynprice_token_expiry']);
+        setDataStatus('توکن منقضی شد، دوباره تلاش کنید', 'err');
+      } else {
+        setDataStatus('خطا: ' + result.error, 'err');
+      }
+      return;
+    }
+
+    if (!result.rows || !result.rows.length) {
+      showNoData(appId);
+      return;
+    }
+
+    var pubData = trinoToAppData(result.columns, result.rows);
+    runAnalysis(pubData, range);
   });
 
   $("more-btn").addEventListener("click",async function(){
@@ -165,33 +253,15 @@
     };
   }
 
-  // ── Data loading ──────────────────────────────────────────────
-  // DATA_SOURCE: to switch to an API, replace fetchPublisherData() below.
-  // The returned object must be: { [appId]: { publisher_name, positions: { [posId]: { desc, type, rows: [[date, cost, pv, device]] } } } }
-  async function fetchPublisherData() {
-    // Current source: local JSON built from daily_position_details.xlsx via build-data.js
-    var url = chrome.runtime.getURL("data/publisher_data.json");
-    // Future (API): var url = "https://api.example.com/publisher-data";
-    var res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return res.json();
-  }
-
-  async function loadData(){
-    try{
-      allData=await fetchPublisherData();
-      var count=Object.values(allData).reduce(function(s,pub){
-        return s+Object.values(pub.positions).reduce(function(s2,pos){return s2+pos.rows.length;},0);
-      },0);
-      var ds=$("data-status");
-      ds.textContent="✓ "+toFa(count.toLocaleString())+" ردیف بارگذاری شد";
-      ds.className="data-status ok";
-      updateAnalyzeBtn();
-    }catch(e){
-      var ds=$("data-status");
-      ds.textContent="خطا: "+e.message;
-      ds.className="data-status err";
-    }
+  // ── Auth status ───────────────────────────────────────────────
+  async function checkAuthStatus() {
+    try {
+      var status = await sendMsg({ type: 'GET_AUTH_STATUS' });
+      setDataStatus(
+        status.authed ? '✓ وارد شده‌اید' : 'پس از کلیک روی آنالیز، احراز هویت می‌شوید',
+        status.authed ? 'ok' : ''
+      );
+    } catch(e) { /* silent — auth will be checked on analyze click */ }
   }
 
   // ── Site strip ────────────────────────────────────────────────
@@ -221,23 +291,14 @@
   }
 
   function updateAnalyzeBtn(){
-    var hasData=allData&&scanResult&&scanResult.appId&&allData[scanResult.appId];
-    $("analyze-btn").disabled=!hasData;
-    if(allData&&scanResult&&!scanResult.appId){
-      $("analyze-btn").textContent="App ID یافت نشد";
-    } else if(allData&&scanResult&&scanResult.appId&&!allData[scanResult.appId]){
-      $("analyze-btn").textContent="دیتا یافت نشد";
-    } else {
-      $("analyze-btn").textContent="آنالیز کن";
-    }
+    var canAnalyze = !!(scanResult && scanResult.appId);
+    $('analyze-btn').disabled = !canAnalyze;
+    $('analyze-btn').textContent = (scanResult && !scanResult.appId) ? 'App ID یافت نشد' : 'آنالیز کن';
   }
 
   // ── Analysis ──────────────────────────────────────────────────
-  function runAnalysis(){
-    var range=getDateRange();
+  function runAnalysis(pubData, range){
     var appId=scanResult.appId;
-    var pubData=allData[appId];
-    if(!pubData){showNoData(appId);return;}
 
     var foundOnPage=new Set(scanResult.positionIds||[]);
     var allPositionIds=Object.keys(pubData.positions);
@@ -346,7 +407,7 @@
     hideAll();
     $("date-section").classList.remove("hidden");
     $("nodata-state").classList.remove("hidden");
-    $("nodata-body").textContent='App ID "'+appId+'" در داده‌های تاریخی موجود نیست.';
+    $("nodata-body").textContent='هیچ داده‌ای برای App ID "'+appId+'" در این بازه زمانی یافت نشد.';
   }
 
   function showLoading(posCount){
@@ -493,5 +554,5 @@
 
   // ── Init ──────────────────────────────────────────────────────
   initDatePickers();
-  loadData();
+  checkAuthStatus();
 })();
