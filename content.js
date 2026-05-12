@@ -22,13 +22,22 @@
 
     document.querySelectorAll("script[src]").forEach((s) => {
       if (!appId) {
-        const m = s.src.match(/cdn\.yektanet\.com\/superscript\/([^/]+)\//);
+        let m = s.src.match(/cdn\.yektanet\.com\/superscript\/([^/]+)\//);
+        if (m) { appId = m[1]; return; }
+        // New loader URL: cdn.yektanet.com/rg_woebegone/scripts_v4/{ver}/{appId}/complete.js
+        m = s.src.match(/cdn\.yektanet\.com\/rg_woebegone\/scripts_v4\/[^/]+\/([^/]+)\//);
         if (m) appId = m[1];
       }
     });
     if (!appId) {
-      const m = document.documentElement.innerHTML.match(
+      let m = document.documentElement.innerHTML.match(
         /cdn\.yektanet\.com\/superscript\/([^/]+)\//
+      );
+      if (m) appId = m[1];
+    }
+    if (!appId) {
+      const m = document.documentElement.innerHTML.match(
+        /cdn\.yektanet\.com\/rg_woebegone\/scripts_v4\/[^/]+\/([^/]+)\//
       );
       if (m) appId = m[1];
     }

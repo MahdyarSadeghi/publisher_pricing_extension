@@ -1,26 +1,19 @@
 #!/usr/bin/env node
-// Converts daily_position_details.xlsx (or publisher_data.xlsx) → data/publisher_data.json
+// Converts data/daily_position_details.xlsx → data/publisher_data.json
 // Run: node build-data.js
 
 const xlsx = require('xlsx');
 const fs   = require('fs');
 const path = require('path');
 
-const DATA_DIR   = path.join(__dirname, 'data');
-const OUTPUT     = path.join(DATA_DIR, 'publisher_data.json');
-const CANDIDATES = [
-  'daily_position_details.xlsx',
-  'publisher_data.xlsx',
-];
+const DATA_DIR = path.join(__dirname, 'data');
+const OUTPUT   = path.join(DATA_DIR, 'publisher_data.json');
+const SRC_NAME = 'daily_position_details.xlsx';
 
 // ── Find source file ──────────────────────────────────────────────
-let srcFile = null;
-for (const name of CANDIDATES) {
-  const p = path.join(DATA_DIR, name);
-  if (fs.existsSync(p)) { srcFile = p; break; }
-}
-if (!srcFile) {
-  console.error('Error: no xlsx found in data/. Place daily_position_details.xlsx there.');
+const srcFile = path.join(DATA_DIR, SRC_NAME);
+if (!fs.existsSync(srcFile)) {
+  console.error('Error: data/daily_position_details.xlsx not found.');
   process.exit(1);
 }
 console.log('Reading:', srcFile);
