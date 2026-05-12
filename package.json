@@ -1,5 +1,6 @@
 {
   "devDependencies": {
-    "canvas": "^3.2.3"
+    "canvas": "^3.2.3",
+    "xlsx": "^0.18.5"
   }
 }
