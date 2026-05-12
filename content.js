@@ -10,7 +10,9 @@
     'ynpos-',
     'pos-article-display-card-',
     'pos-article-display-',
+    'pos-article-text-',
     'pos-notification-',
+    'pos-slider-',
   ];
 
   // ── Page scan ────────────────────────────────────────────────
@@ -34,10 +36,16 @@
     const html = document.documentElement.innerHTML;
 
     // Regex scan across all known ID patterns
-    const re = /id=["'](ynpos|pos-article-display-card|pos-article-display|pos-notification)-(\d+)["']/g;
+    const re = /id=["'](ynpos|pos-article-display-card|pos-article-display|pos-article-text|pos-notification|pos-slider)-(\d+)["']/g;
     let match;
     while ((match = re.exec(html)) !== null) {
       allIds.add(match[2]);
+    }
+
+    // yn-notification-{id}-player-style: style tag scan only (not a container — used for ID detection)
+    const reNotifStyle = /id=["']yn-notification-(\d+)-player-style["']/g;
+    while ((match = reNotifStyle.exec(html)) !== null) {
+      allIds.add(match[1]);
     }
 
     // DOM query for all prefixes
@@ -45,6 +53,12 @@
     document.querySelectorAll(selector).forEach((el) => {
       const m = el.id.match(/(\d+)$/);
       if (m) allIds.add(m[1]);
+    });
+
+    // xads class with data-id (e.g. <div class="xads position-22" data-id="22">)
+    document.querySelectorAll('.xads[data-id]').forEach((el) => {
+      const id = el.getAttribute('data-id');
+      if (id && /^\d+$/.test(id)) allIds.add(id);
     });
 
     // Data-attribute variants
@@ -112,6 +126,10 @@
       const el = document.getElementById(prefix + posId);
       if (el) return { el, iframeEl: null };
     }
+    // xads class with data-id
+    const byXads = document.querySelector('.xads[data-id="' + posId + '"]');
+    if (byXads) return { el: byXads, iframeEl: null };
+
     // Data attributes
     const byAttr =
       document.querySelector('[data-ynpos="' + posId + '"],[data-position-id="' + posId + '"]');
@@ -126,6 +144,8 @@
           const candidate = doc.getElementById(prefix + posId);
           if (candidate) return { el: candidate, iframeEl: fr };
         }
+        const frXads = doc.querySelector('.xads[data-id="' + posId + '"]');
+        if (frXads) return { el: frXads, iframeEl: fr };
       } catch (_) {}
     }
     return null;
