@@ -166,12 +166,20 @@
   }
 
   // ── Data loading ──────────────────────────────────────────────
+  // DATA_SOURCE: to switch to an API, replace fetchPublisherData() below.
+  // The returned object must be: { [appId]: { publisher_name, positions: { [posId]: { desc, type, rows: [[date, cost, pv, device]] } } } }
+  async function fetchPublisherData() {
+    // Current source: local JSON built from daily_position_details.xlsx via build-data.js
+    var url = chrome.runtime.getURL("data/publisher_data.json");
+    // Future (API): var url = "https://api.example.com/publisher-data";
+    var res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
   async function loadData(){
     try{
-      var url=chrome.runtime.getURL("data/publisher_data.json");
-      var res=await fetch(url);
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      allData=await res.json();
+      allData=await fetchPublisherData();
       var count=Object.values(allData).reduce(function(s,pub){
         return s+Object.values(pub.positions).reduce(function(s2,pos){return s2+pos.rows.length;},0);
       },0);
