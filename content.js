@@ -1,7 +1,9 @@
 (function () {
   if (document.getElementById("ynprice-sidebar-container")) {
     const el = document.getElementById("ynprice-sidebar-container");
-    el.style.display = el.style.display === "none" ? "block" : "none";
+    const opening = el.style.display === "none";
+    el.style.display = opening ? "block" : "none";
+    document.documentElement.style.marginRight = opening ? "360px" : "";
     return;
   }
 
@@ -93,16 +95,22 @@
   }
 
   // ── Sidebar iframe ───────────────────────────────────────────
+  const SIDEBAR_W = 360;
+
   const container = document.createElement("div");
   container.id = "ynprice-sidebar-container";
   container.style.cssText =
-    "position:fixed;top:0;right:0;width:360px;height:100vh;z-index:2147483647;box-shadow:-4px 0 20px rgba(0,0,0,0.25);";
+    "position:fixed;top:0;right:0;width:" + SIDEBAR_W + "px;height:100vh;z-index:2147483647;box-shadow:-4px 0 20px rgba(0,0,0,0.25);";
 
   const iframe = document.createElement("iframe");
   iframe.src = chrome.runtime.getURL("sidebar.html");
   iframe.style.cssText = "width:100%;height:100%;border:none;";
   container.appendChild(iframe);
   document.body.appendChild(container);
+
+  // Push page content to the left so sidebar sits beside it
+  document.documentElement.style.transition = "margin-right 0.25s ease";
+  document.documentElement.style.marginRight = SIDEBAR_W + "px";
 
   const scanData = scanPage();
 
@@ -119,10 +127,15 @@
     );
   });
 
+  function hideSidebar() {
+    container.style.display = "none";
+    document.documentElement.style.marginRight = "";
+  }
+
   window.addEventListener("message", (event) => {
     if (!event.data) return;
     if (event.data.type === "CLOSE_SIDEBAR") {
-      container.style.display = "none";
+      hideSidebar();
     }
     if (event.data.type === "HIGHLIGHT_POSITION") {
       highlightPosition(event.data.positionId);
@@ -218,26 +231,6 @@
       } else {
         top  = elRect.top;
         left = elRect.left;
-      }
-
-      // If the element is hidden behind the sidebar panel, slide the sidebar away
-      // so the user can actually see the highlight
-      const sidebarRect = container.getBoundingClientRect();
-      const hiddenBySidebar =
-        left + Math.max(elRect.width, 60) > sidebarRect.left &&
-        left < sidebarRect.right &&
-        top  + Math.max(elRect.height, 30) > sidebarRect.top &&
-        top  < sidebarRect.bottom;
-
-      if (hiddenBySidebar) {
-        container.style.transition = "transform 0.28s ease";
-        container.style.transform  = "translateX(100%)";
-        // Slide back in after highlight fades
-        setTimeout(function() {
-          container.style.transition = "transform 0.35s ease";
-          container.style.transform  = "";
-          setTimeout(function(){ container.style.transition = ""; }, 360);
-        }, 2700);
       }
 
       // Ensure minimum size so even empty placeholder divs are visible
