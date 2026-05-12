@@ -175,7 +175,20 @@
     }
 
     document.querySelectorAll(".ynprice-overlay").forEach((e) => e.remove());
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    // For empty containers (e.g. notification placeholders), use first visible child
+    let targetEl = el;
+    {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) {
+        for (const child of el.querySelectorAll("*")) {
+          const cr = child.getBoundingClientRect();
+          if (cr.width > 0 || cr.height > 0) { targetEl = child; break; }
+        }
+      }
+    }
+
+    targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
 
     // Show overlay after scroll finishes (detect via scroll-end)
     // Falls back to 200ms if element is already in view (no scroll event fires)
@@ -186,7 +199,7 @@
       window.removeEventListener("scroll", onScroll, true);
       clearTimeout(noScrollTimer);
 
-      const elRect = el.getBoundingClientRect();
+      const elRect = targetEl.getBoundingClientRect();
       let top, left;
       if (iframeEl) {
         const frRect = iframeEl.getBoundingClientRect();
