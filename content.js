@@ -8,6 +8,7 @@
   // All known Yektanet position ID patterns
   const YN_PREFIXES = [
     'ynpos-',
+    'yn-notification-',
     'pos-article-display-card-',
     'pos-article-display-',
     'pos-article-text-',
@@ -36,7 +37,7 @@
     const html = document.documentElement.innerHTML;
 
     // Regex scan across all known ID patterns
-    const re = /id=["'](ynpos|pos-article-display-card|pos-article-display|pos-article-text|pos-notification|pos-slider)-(\d+)["']/g;
+    const re = /id=["'](ynpos|yn-notification|pos-article-display-card|pos-article-display|pos-article-text|pos-notification|pos-slider)-(\d+)["']/g;
     let match;
     while ((match = re.exec(html)) !== null) {
       allIds.add(match[2]);
