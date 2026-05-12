@@ -115,27 +115,28 @@
       setDataStatus('✓ وارد شده‌اید', 'ok');
     }
 
-    // 2. Validate appId (alphanumeric, dash, underscore only) to prevent injection
+    // ── 2. Validate appId ──────────────────────────────────────
     if (!/^[A-Za-z0-9_-]+$/.test(appId)) {
-      setDataStatus('App ID نامعتبر', 'err');
+      setDataStatus('App ID نامعتبر: ' + appId, 'err');
       btn.disabled = false;
       return;
     }
 
-    // 3. Query Trino
+    // ── 3. Query ───────────────────────────────────────────────
     setDataStatus('⏳ در حال دریافت داده از پایگاه داده…', '');
     var sql =
       "SELECT * FROM hafez.data_operation.nashereman" +
       " WHERE app_id = '" + appId + "'" +
       " AND date >= '" + range.from + "'" +
       " AND date <= '" + range.to + "'";
+
     var result = await sendMsg({ type: 'QUERY_TRINO', sql: sql });
     btn.disabled = false;
 
     if (result.error) {
       if (result.error === 'not_authed') {
         chrome.storage.local.remove(['ynprice_token', 'ynprice_token_expiry']);
-        setDataStatus('توکن منقضی شد، دوباره تلاش کنید', 'err');
+        setDataStatus('توکن منقضی شد — دوباره تلاش کنید', 'err');
       } else {
         setDataStatus('خطا: ' + result.error, 'err');
       }
@@ -148,6 +149,7 @@
     }
 
     var pubData = trinoToAppData(result.columns, result.rows);
+    if (!Object.keys(pubData.positions).length) { showNoData(appId); return; }
     runAnalysis(pubData, range);
   });
 
