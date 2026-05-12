@@ -250,6 +250,9 @@
           var valid=rows.filter(function(r){return r[2]>0;});
           var rpm=valid.length?valid.reduce(function(s,r){return s+r[1]/r[2];},0)/valid.length:null;
 
+          var device=null;
+          for(var ri=0;ri<rows.length;ri++){if(rows[ri][3]){device=rows[ri][3];break;}}
+
           matched.push({
             positionId:posId, rpm:rpm,
             description:posData.desc||"",
@@ -260,6 +263,7 @@
             rowCount:rows.length,
             rows:rows,
             foundOnPage:foundOnPage.has(posId),
+            device:device,
           });
         });
 
@@ -387,28 +391,13 @@
     var topPct=totalAdv>0?Math.round(topAdv/totalAdv*100):90;
     var botPct=100-topPct;
 
-    function detectDevice(desc,type){
-      var d=(desc||"").toLowerCase();
-      var t=(type||"").toLowerCase();
-      var all=d+" "+t;
-      // type-based (most reliable)
-      if(/\bmob\b|^mob[-_]|[-_]mob\b|mob[-_]banner|mob[-_]native/.test(t))return"mob";
-      if(/\bdesk\b|^desk[-_]|[-_]desk\b/.test(t))return"desk";
-      // keyword in description
-      if(/موبایل|mobile\b/.test(all))return"mob";
-      if(/دسکتاپ|desktop\b/.test(all))return"desk";
-      // sticky is almost always mobile in Yektanet
-      if(/sticky/.test(all))return"mob";
-      return null;
-    }
-
     function makeCard(item){
       var card=document.createElement("div");
       card.className="pos-card pos-card-found";
       card.setAttribute("data-posid",item.positionId);
       var label=item.description||("ynpos-"+item.positionId);
       var found=item.foundOnPage;
-      var dev=detectDevice(item.description,item.positionType);
+      var dev=item.device||null;
       var devHtml=dev?'<span class="pos-device-badge pos-device-'+dev+'">'+(dev==="mob"?"موبایل":"دسکتاپ")+'</span>':'';
       var dotCls=found?"pos-found-on":"pos-found-off";
       var dotTitle=found?"روی این صفحه موجوده":"در این صفحه یافت نشد";
@@ -451,7 +440,7 @@
       card.className="pos-card no-data pos-card-found";
       card.setAttribute("data-posid",item.positionId);
       var label=item.description||("ynpos-"+item.positionId);
-      var dev=detectDevice(item.description,item.positionType||"");
+      var dev=item.device||null;
       var devHtml=dev?'<span class="pos-device-badge pos-device-'+dev+'">'+(dev==="mob"?"موبایل":"دسکتاپ")+'</span>':'';
       card.innerHTML=
         '<div class="pos-icon">—</div>'+
