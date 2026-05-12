@@ -386,11 +386,13 @@ header {
 .pos-meta { font-size: 9.5px; color: var(--muted); font-family: 'Vazirmatn', monospace; margin-top: 2px; display: flex; gap: 5px; align-items: center; }
 .pos-meta .no-data-tag { color: var(--danger); }
 .pos-device-badge { font-size: 8.5px; font-weight: 600; padding: 1px 5px; border-radius: 3px; letter-spacing: .02em; }
-.pos-device-mob  { background: rgba(59,130,246,.15); color: #3b82f6; }
-.pos-device-desk { background: rgba(16,185,129,.15); color: #059669; }
+.pos-device-mob,.pos-device-mobile   { background: rgba(59,130,246,.15); color: #3b82f6; }
+.pos-device-desk,.pos-device-desktop { background: rgba(16,185,129,.15); color: #059669; }
+.pos-device-all  { background: rgba(139,92,246,.15); color: #7c3aed; }
 @media (prefers-color-scheme: dark) {
-  .pos-device-mob  { background: rgba(59,130,246,.25); color: #60a5fa; }
-  .pos-device-desk { background: rgba(16,185,129,.25); color: #34d399; }
+  .pos-device-mob,.pos-device-mobile   { background: rgba(59,130,246,.25); color: #60a5fa; }
+  .pos-device-desk,.pos-device-desktop { background: rgba(16,185,129,.25); color: #34d399; }
+  .pos-device-all  { background: rgba(139,92,246,.25); color: #a78bfa; }
 }
 
 .pos-block-top90 {
