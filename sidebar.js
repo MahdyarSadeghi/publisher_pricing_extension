@@ -1,6 +1,11 @@
 (function () {
   "use strict";
 
+  // ── Data source ───────────────────────────────────────────────
+  // true  → local data/publisher_data.json (no auth needed)
+  // false → live Trino query via Keycloak auth
+  var USE_LOCAL_DATA = true;
+
   // ── Jalali conversions ────────────────────────────────────────
   function gToJ(gy, gm, gd) {
     gy -= 1600; gm -= 1; gd -= 1;
@@ -102,55 +107,71 @@
     var range = getDateRange();
     var appId = scanResult.appId;
 
-    // 1. Ensure authenticated
-    var status = await sendMsg({ type: 'GET_AUTH_STATUS' });
-    if (!status.authed) {
-      setDataStatus('⏳ در حال احراز هویت… لطفاً در مرورگر وارد شوید', '');
-      var auth = await sendMsg({ type: 'START_AUTH' });
-      if (auth.error) {
-        setDataStatus('خطا در احراز هویت: ' + auth.error, 'err');
+    if (USE_LOCAL_DATA) {
+      // ── Local JSON mode ────────────────────────────────────────
+      setDataStatus('⏳ در حال بارگذاری داده…', '');
+      var allData;
+      try {
+        var res = await fetch(chrome.runtime.getURL('data/publisher_data.json'));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        allData = await res.json();
+      } catch(e) {
+        setDataStatus('خطا در بارگذاری داده: ' + e.message, 'err');
         btn.disabled = false;
         return;
       }
-      setDataStatus('✓ وارد شده‌اید', 'ok');
-    }
-
-    // ── 2. Validate appId ──────────────────────────────────────
-    if (!/^[A-Za-z0-9_-]+$/.test(appId)) {
-      setDataStatus('App ID نامعتبر: ' + appId, 'err');
       btn.disabled = false;
-      return;
-    }
+      if (!allData[appId]) { showNoData(appId); return; }
+      runAnalysis(allData[appId], range);
 
-    // ── 3. Query ───────────────────────────────────────────────
-    setDataStatus('⏳ در حال دریافت داده از پایگاه داده…', '');
-    var sql =
-      "SELECT * FROM hafez.data_operation.nashereman" +
-      " WHERE app_id = '" + appId + "'" +
-      " AND date >= '" + range.from + "'" +
-      " AND date <= '" + range.to + "'";
-
-    var result = await sendMsg({ type: 'QUERY_TRINO', sql: sql });
-    btn.disabled = false;
-
-    if (result.error) {
-      if (result.error === 'not_authed') {
-        chrome.storage.local.remove(['ynprice_token', 'ynprice_token_expiry']);
-        setDataStatus('توکن منقضی شد — دوباره تلاش کنید', 'err');
-      } else {
-        setDataStatus('خطا: ' + result.error, 'err');
+    } else {
+      // ── Live Trino mode ────────────────────────────────────────
+      // 1. Auth
+      var status = await sendMsg({ type: 'GET_AUTH_STATUS' });
+      if (!status.authed) {
+        setDataStatus('⧗ در حال احراز هویت… لطفاً در مرورگر وارد شوید', '');
+        var auth = await sendMsg({ type: 'START_AUTH' });
+        if (auth.error) {
+          setDataStatus('خطا در احراز هویت: ' + auth.error, 'err');
+          btn.disabled = false;
+          return;
+        }
+        setDataStatus('✓ وارد شده‌اید', 'ok');
       }
-      return;
-    }
 
-    if (!result.rows || !result.rows.length) {
-      showNoData(appId);
-      return;
-    }
+      // 2. Validate appId
+      if (!/^[A-Za-z0-9_-]+$/.test(appId)) {
+        setDataStatus('App ID نامعتبر: ' + appId, 'err');
+        btn.disabled = false;
+        return;
+      }
 
-    var pubData = trinoToAppData(result.columns, result.rows);
-    if (!Object.keys(pubData.positions).length) { showNoData(appId); return; }
-    runAnalysis(pubData, range);
+      // 3. Query
+      setDataStatus('⧗ در حال دریافت داده از پایگاه داده…', '');
+      var sql =
+        "SELECT * FROM hafez.data_operation.nashereman" +
+        " WHERE app_id = '" + appId + "'" +
+        " AND date >= '" + range.from + "'" +
+        " AND date <= '" + range.to + "'";
+
+      var result = await sendMsg({ type: 'QUERY_TRINO', sql: sql });
+      btn.disabled = false;
+
+      if (result.error) {
+        if (result.error === 'not_authed') {
+          chrome.storage.local.remove(['ynprice_token', 'ynprice_token_expiry']);
+          setDataStatus('توکن منقضی شد — دوباره تلاش کنید', 'err');
+        } else {
+          setDataStatus('خطا: ' + result.error, 'err');
+        }
+        return;
+      }
+
+      if (!result.rows || !result.rows.length) { showNoData(appId); return; }
+      var pubData = trinoToAppData(result.columns, result.rows);
+      if (!Object.keys(pubData.positions).length) { showNoData(appId); return; }
+      runAnalysis(pubData, range);
+    }
   });
 
   $("more-btn").addEventListener("click",async function(){
@@ -257,6 +278,10 @@
 
   // ── Auth status ───────────────────────────────────────────────
   async function checkAuthStatus() {
+    if (USE_LOCAL_DATA) {
+      setDataStatus('داده محلی فعال است', 'ok');
+      return;
+    }
     try {
       var status = await sendMsg({ type: 'GET_AUTH_STATUS' });
       setDataStatus(
