@@ -21,6 +21,7 @@
       "resources": [
         "sidebar.html", "sidebar.js", "sidebar.css",
         "report-viewer.html", "report-viewer.js",
+        "pricing-agent.html", "pricing-agent.js",
         "data/publisher_data.json"
       ],
       "matches": ["<all_urls>"]

@@ -174,51 +174,10 @@
     }
   });
 
-  $("more-btn").addEventListener("click",async function(){
-    if(!analysisResult) return;
-    var btn=$("more-btn");
-    btn.classList.add("reporting");
-    btn.querySelector(".cta-btn-main").textContent="⏳ در حال تهیه گزارش...";
-    try{
-      var report={
-        matched:analysisResult.matched,
-        unmatched:analysisResult.unmatched,
-        totalRpm:analysisResult.totalRpm,
-        publisherName:analysisResult.publisherName,
-        from:analysisResult.from,to:analysisResult.to,
-        appId:analysisResult.appId,
-        allPositionCount:analysisResult.allPositionCount,
-        pageTitle:scanResult.pageTitle,pageUrl:scanResult.pageUrl,
-        generatedAt:new Date().toISOString(),
-      };
-      await new Promise(function(resolve,reject){
-        chrome.storage.local.set({ynprice_report:report},function(){
-          if(chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-          else resolve();
-        });
-      });
-      chrome.runtime.sendMessage({type:"OPEN_REPORT_VIEWER"},function(){
-        if(chrome.runtime.lastError){ console.warn("OPEN_REPORT_VIEWER:",chrome.runtime.lastError.message); }
-      });
-      // fire-and-forget screenshots from the host page
-      (function(){
-        var posIds=(analysisResult.matched||[]).filter(function(p){return p.foundOnPage;}).map(function(p){return p.positionId;});
-        if(!posIds.length) return;
-        chrome.tabs.query({active:true,currentWindow:false},function(tabs){
-          var hostTab=tabs&&tabs.find(function(t){return t.url===scanResult.pageUrl;});
-          if(!hostTab) return;
-          chrome.tabs.sendMessage(hostTab.id,{type:"TAKE_SCREENSHOTS",positionIds:posIds},function(){
-            if(chrome.runtime.lastError){ /* tab may not be ready */ }
-          });
-        });
-      })();
-      btn.classList.remove("reporting");
-      btn.querySelector(".cta-btn-main").textContent="✓ گزارش باز شد";
-    }catch(e){
-      console.error("Report error:",e);
-      btn.classList.remove("reporting");
-      btn.querySelector(".cta-btn-main").textContent="خطا: "+e.message;
-    }
+  $("more-btn").addEventListener("click",function(){
+    chrome.runtime.sendMessage({type:"OPEN_PRICING_AGENT"},function(){
+      if(chrome.runtime.lastError){ console.warn("OPEN_PRICING_AGENT:",chrome.runtime.lastError.message); }
+    });
   });
 
   $("retry-btn").addEventListener("click",function(){
