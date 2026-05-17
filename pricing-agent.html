@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>قیمت‌گذاری ناشر — ناشر من</title>
+  <title>ناشر من</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -12,341 +12,387 @@
 
     body {
       font-family: 'Vazirmatn', Tahoma, sans-serif;
-      background: #f5f5f7;
+      background: #fff;
       color: #1a1a2e;
-      min-height: 100vh;
       direction: rtl;
+      min-height: 100vh;
     }
 
-    /* ── Header ── */
-    .header {
-      background: #fff;
-      border-bottom: 1px solid #e8e8e8;
-      padding: 14px 28px;
+    /* ═══════════════════════════════════════
+       SEARCH PAGE (Google-style homepage)
+    ═══════════════════════════════════════ */
+    #page-search {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 0 24px 80px;
+    }
+
+    .home-logo {
+      width: 92px;
+      height: 92px;
+      border-radius: 22px;
+      object-fit: cover;
+      margin-bottom: 18px;
+    }
+
+    .home-title {
+      font-size: 3rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+    }
+
+    .home-search-wrap {
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .search-pill {
+      width: 100%;
       display: flex;
       align-items: center;
+      border: 1px solid #dfe1e5;
+      border-radius: 28px;
+      padding: 0 18px;
+      height: 54px;
+      box-shadow: none;
+      transition: box-shadow 0.2s, border-color 0.2s;
+      background: #fff;
       gap: 10px;
-      position: sticky;
-      top: 0;
+    }
+
+    .search-pill:focus-within {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+      border-color: transparent;
+    }
+
+    .search-pill svg { flex-shrink: 0; color: #9aa0a6; }
+
+    .search-pill input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      font-size: 1rem;
+      color: #1a1a2e;
+      direction: rtl;
+      background: transparent;
+    }
+
+    .search-pill input::placeholder { color: #c0c0c0; }
+
+    .search-btn {
+      background: #f8f9fa;
+      border: 1px solid #f8f9fa;
+      border-radius: 6px;
+      padding: 10px 22px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: #3c4043;
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+
+    .search-btn:hover {
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      border-color: #dadce0;
+    }
+
+    .home-err {
+      font-size: 0.85rem;
+      color: #d93025;
+      margin-top: 4px;
+    }
+
+    /* ═══════════════════════════════════════
+       PV PAGE (new publisher — minimal)
+    ═══════════════════════════════════════ */
+    #page-pv {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 0 24px 80px;
+      text-align: center;
+    }
+
+    .pv-logo { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; margin-bottom: 14px; }
+    .pv-not-found {
+      font-size: 1.05rem;
+      color: #3c4043;
+      margin-bottom: 6px;
+    }
+    .pv-not-found strong { color: #1a1a2e; }
+    .pv-sub { font-size: 0.88rem; color: #888; margin-bottom: 28px; }
+
+    .pv-input-row {
+      display: flex; gap: 10px; align-items: center;
+    }
+    .pv-input-row input {
+      padding: 12px 18px;
+      border: 1.5px solid #dfe1e5;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      width: 200px;
+      direction: ltr;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .pv-input-row input:focus { border-color: #1a1a2e; }
+    .pv-btn {
+      padding: 12px 24px;
+      background: #1a1a2e;
+      color: #FDD015;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .pv-btn:hover { opacity: 0.88; }
+    .pv-back {
+      margin-top: 18px;
+      background: none; border: none;
+      color: #888; font-family: inherit; font-size: 0.85rem;
+      cursor: pointer; text-decoration: underline;
+    }
+    .pv-err { font-size: 0.83rem; color: #d93025; margin-top: 10px; }
+
+    /* ═══════════════════════════════════════
+       LOADING PAGE
+    ═══════════════════════════════════════ */
+    #page-loading {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+      color: #888;
+    }
+
+    .dots {
+      display: flex; gap: 8px;
+    }
+    .dot {
+      width: 10px; height: 10px;
+      background: #FDD015;
+      border-radius: 50%;
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{transform:scale(0.7);opacity:0.5} 40%{transform:scale(1);opacity:1} }
+
+    #loading-msg { font-size: 0.9rem; }
+
+    /* ═══════════════════════════════════════
+       RESULTS PAGE
+    ═══════════════════════════════════════ */
+    #page-results { display: none; }
+
+    .results-bar {
+      border-bottom: 1px solid #ebebeb;
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky; top: 0;
+      background: #fff;
       z-index: 10;
     }
-    .header-logo {
-      width: 28px; height: 28px;
-      background: #FDD015;
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.85rem;
+
+    .bar-logo { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
+    .bar-title { font-size: 1rem; font-weight: 700; white-space: nowrap; }
+
+    .bar-search-pill {
+      flex: 1; max-width: 480px;
+      display: flex; align-items: center;
+      border: 1px solid #dfe1e5;
+      border-radius: 24px;
+      padding: 0 14px; height: 42px;
+      gap: 8px;
     }
-    .header h1 { font-size: 1rem; font-weight: 600; }
-    .header-badge {
-      background: #1a1a2e; color: #FDD015;
-      font-size: 0.68rem; font-weight: 700;
-      padding: 2px 8px; border-radius: 20px;
+    .bar-search-pill svg { flex-shrink: 0; color: #9aa0a6; }
+    .bar-search-pill span {
+      font-size: 0.9rem;
+      color: #3c4043;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    /* ── Container ── */
-    .container {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 48px 24px 80px;
-    }
-
-    /* ── Steps ── */
-    .step { display: none; }
-    .step.active { display: block; }
-
-    /* ── Step 1: Search ── */
-    .search-hero {
-      text-align: center;
-      margin-bottom: 40px;
-    }
-    .search-hero h2 {
-      font-size: 1.9rem; font-weight: 700;
-      margin-bottom: 8px; line-height: 1.4;
-    }
-    .search-hero p { color: #777; font-size: 0.95rem; }
-
-    .search-row {
-      display: flex; gap: 8px;
-      max-width: 520px; margin: 0 auto;
-    }
-    .search-row input {
-      flex: 1;
-      padding: 13px 18px;
-      border: 2px solid #e0e0e0;
-      border-radius: 12px;
-      font-family: inherit; font-size: 0.95rem;
-      outline: none; transition: border-color 0.18s;
-    }
-    .search-row input:focus { border-color: #FDD015; }
-
-    /* ── Buttons ── */
-    .btn {
-      padding: 11px 22px;
-      border: none; border-radius: 10px;
-      font-family: inherit; font-size: 0.92rem; font-weight: 600;
-      cursor: pointer; transition: all 0.18s;
+    .bar-new-btn {
+      background: none; border: 1px solid #dadce0;
+      border-radius: 6px; padding: 8px 16px;
+      font-family: inherit; font-size: 0.82rem;
+      color: #3c4043; cursor: pointer;
       white-space: nowrap;
     }
-    .btn-primary { background: #FDD015; color: #1a1a2e; }
-    .btn-primary:hover { background: #e8c000; transform: translateY(-1px); }
-    .btn-primary:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; transform: none; }
-    .btn-secondary { background: #f0f0f0; color: #333; }
-    .btn-secondary:hover { background: #e4e4e4; }
-    .btn-ghost {
-      background: transparent;
-      border: 2px dashed #d0d0d0;
-      color: #666; width: 100%;
-      padding: 10px; margin-top: 8px;
-    }
-    .btn-ghost:hover { border-color: #FDD015; color: #1a1a2e; }
+    .bar-new-btn:hover { background: #f8f9fa; }
 
-    /* ── Cards ── */
-    .card {
-      background: #fff; border-radius: 14px;
-      padding: 20px 24px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
-      margin-bottom: 14px;
-    }
-    .section-label {
-      font-size: 0.78rem; font-weight: 600;
-      color: #999; text-transform: uppercase;
-      letter-spacing: 0.04em; margin-bottom: 10px;
+    .results-container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 28px 24px 80px;
     }
 
-    /* ── Publisher status banners ── */
-    .pub-banner {
-      display: flex; align-items: flex-start; gap: 12px;
-      padding: 16px 20px; border-radius: 12px; margin-bottom: 16px;
+    /* Publisher summary row */
+    .pub-summary {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #f0f0f0;
     }
-    .pub-banner.found { background: #f0fdf4; border: 1px solid #bbf7d0; }
-    .pub-banner.not-found { background: #fff7ed; border: 1px solid #fed7aa; }
-    .pub-banner-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
-    .pub-banner-name { font-weight: 700; font-size: 1rem; }
-    .pub-banner-id { font-size: 0.78rem; color: #777; font-family: monospace; margin-top: 2px; }
-    .pub-banner-sub { font-size: 0.85rem; color: #666; margin-top: 2px; }
+    .pub-name { font-size: 1.2rem; font-weight: 700; }
+    .pub-appid { font-size: 0.78rem; color: #aaa; font-family: monospace; }
+    .pub-meta { font-size: 0.8rem; color: #aaa; margin-right: auto; }
 
-    /* ── Position list ── */
-    .pos-list { display: flex; flex-direction: column; gap: 7px; }
-    .pos-item {
-      display: flex; align-items: center; gap: 12px;
-      padding: 11px 14px;
-      border: 1.5px solid #e8e8e8; border-radius: 10px;
-      cursor: pointer; transition: all 0.15s;
-      user-select: none;
-    }
-    .pos-item:hover { border-color: #FDD015; background: #fffef0; }
-    .pos-item.selected { border-color: #FDD015; background: #fffef0; }
-    .pos-item input[type="checkbox"] {
-      width: 17px; height: 17px;
-      accent-color: #1a1a2e; cursor: pointer; flex-shrink: 0;
-    }
-    .pos-item-info { flex: 1; min-width: 0; }
-    .pos-item-desc { font-size: 0.92rem; font-weight: 500; }
-    .pos-item-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
-    .pos-item-id { font-size: 0.75rem; color: #aaa; font-family: monospace; }
-    .pos-type-badge {
-      font-size: 0.7rem; background: #f2f2f2;
-      padding: 2px 7px; border-radius: 20px; color: #666;
-    }
-    .pos-rpm-hint { font-size: 0.75rem; color: #aaa; margin-right: auto; flex-shrink: 0; }
-
-    /* ── New position inline form ── */
-    .add-pos-form {
-      display: flex; gap: 8px; align-items: center;
-      padding: 10px 12px;
-      border: 2px dashed #ddd; border-radius: 10px; margin-top: 8px;
-    }
-    .add-pos-form select {
-      flex: 1; padding: 8px 10px;
-      border: 1.5px solid #ddd; border-radius: 8px;
-      font-family: inherit; font-size: 0.88rem; direction: rtl;
-      outline: none; background: #fff;
-    }
-    .add-pos-form select:focus { border-color: #FDD015; }
-    .add-pos-new-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px;
-      border: 1.5px solid #FDD015; border-radius: 10px; background: #fffef0;
-    }
-    .add-pos-new-item .pos-item-info { flex: 1; }
-    .remove-btn {
-      background: none; border: none; cursor: pointer;
-      color: #dc2626; font-size: 1rem; padding: 2px 4px;
-      line-height: 1;
-    }
-
-    /* ── PV input ── */
-    .pv-row { display: flex; flex-direction: column; gap: 6px; }
-    .pv-row label { font-size: 0.88rem; color: #555; font-weight: 500; }
-    .pv-row input {
-      padding: 10px 14px;
-      border: 2px solid #e0e0e0; border-radius: 10px;
-      font-family: inherit; font-size: 0.95rem;
-      direction: ltr; text-align: right; width: 220px; outline: none;
-    }
-    .pv-row input:focus { border-color: #FDD015; }
-    .pv-row small { font-size: 0.78rem; color: #aaa; }
-
-    /* ── Action row ── */
-    .action-row { display: flex; gap: 8px; margin-top: 20px; }
-
-    /* ── Error ── */
-    .err-box {
-      background: #fef2f2; border: 1px solid #fecaca;
-      color: #b91c1c; border-radius: 10px;
-      padding: 10px 14px; font-size: 0.88rem; margin-top: 10px;
-    }
-
-    /* ── Loading ── */
-    .loading-box { text-align: center; padding: 60px 24px; }
-    .spinner {
-      display: inline-block; width: 30px; height: 30px;
-      border: 3px solid #e8e8e8; border-top-color: #FDD015;
-      border-radius: 50%; animation: spin 0.75s linear infinite;
-      margin-bottom: 14px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .loading-box p { color: #777; font-size: 0.9rem; }
-
-    /* ── Results ── */
-    .results-header {
-      display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px;
-    }
-    .results-header h2 { font-size: 1.2rem; font-weight: 700; }
-    .results-pub-chip {
-      font-size: 0.8rem; background: #1a1a2e; color: #FDD015;
-      padding: 3px 10px; border-radius: 20px;
-    }
-
-    .pricing-card {
-      background: #fff; border-radius: 14px;
-      padding: 20px 24px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
-      margin-bottom: 14px;
-    }
-    .pricing-card-head {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
-    }
-    .pricing-card-head h3 { font-size: 0.97rem; font-weight: 700; flex: 1; }
-    .pricing-source-note { font-size: 0.75rem; color: #aaa; }
-
-    .pricing-grid {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
-      margin-bottom: 8px;
-    }
-    .pricing-cell {
-      text-align: center; padding: 14px 10px; border-radius: 12px;
-    }
-    .pricing-cell.floor  { background: #eff6ff; border: 1.5px solid #bfdbfe; }
-    .pricing-cell.target { background: #fffbeb; border: 2px solid #FDD015; }
-    .pricing-cell.ceil   { background: #f0fdf4; border: 1.5px solid #bbf7d0; }
-    .pricing-cell .lbl { font-size: 0.75rem; color: #888; margin-bottom: 5px; }
-    .pricing-cell .val { font-size: 1.35rem; font-weight: 700; line-height: 1; }
-    .pricing-cell.floor  .val { color: #1d4ed8; }
-    .pricing-cell.target .val { color: #78350f; }
-    .pricing-cell.ceil   .val { color: #14532d; }
-    .pricing-cell .unit { font-size: 0.7rem; color: #bbb; margin-top: 4px; }
-
-    .no-data-note {
-      text-align: center; color: #f59e0b; font-size: 0.83rem; padding: 8px 0;
-    }
-
-    /* ── Seasonal chart ── */
-    .seasonal-card {
-      background: #fff; border-radius: 14px;
-      padding: 20px 24px;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    /* Agent position cards */
+    .pos-card {
       margin-bottom: 20px;
+      border: 1px solid #ebebeb;
+      border-radius: 16px;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
     }
-    .seasonal-card h3 { font-size: 0.97rem; font-weight: 700; margin-bottom: 16px; }
-    .month-chart {
-      display: grid; grid-template-columns: repeat(12, 1fr);
-      gap: 3px; align-items: end; height: 72px; margin-bottom: 8px;
+    .pos-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+    .pos-card-head {
+      padding: 16px 22px 12px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid #f5f5f5;
     }
-    .month-col { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-    .month-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; background: #e5e7eb; }
-    .month-bar.peak { background: #FDD015; }
-    .month-bar.low  { background: #fca5a5; }
-    .month-lbl { font-size: 0.55rem; color: #bbb; margin-top: 3px; white-space: nowrap; }
-    .insight-text { font-size: 0.88rem; color: #555; line-height: 1.75; }
-    .insight-text strong { color: #1a1a2e; }
+    .pos-card-name { font-weight: 600; font-size: 0.97rem; flex: 1; }
+    .pos-card-badge {
+      font-size: 0.7rem; padding: 2px 9px;
+      border-radius: 20px; background: #f2f2f2; color: #666;
+    }
+    .pos-card-id { font-size: 0.72rem; color: #bbb; font-family: monospace; }
+
+    .pos-card-body { padding: 20px 22px; }
+
+    /* The big recommendation number */
+    .rec-row {
+      display: flex; align-items: baseline; gap: 10px;
+      margin-bottom: 6px;
+    }
+    .rec-number {
+      font-size: 2.6rem; font-weight: 700;
+      line-height: 1; color: #1a1a2e;
+      font-variant-numeric: tabular-nums;
+    }
+    .rec-unit { font-size: 0.88rem; color: #888; }
+    .rec-diff {
+      font-size: 0.82rem; font-weight: 600;
+      padding: 3px 9px; border-radius: 20px; margin-right: 4px;
+    }
+    .rec-diff.up   { background: #f0fdf4; color: #15803d; }
+    .rec-diff.down { background: #fef2f2; color: #b91c1c; }
+    .rec-diff.flat { background: #f5f5f5; color: #666; }
+
+    /* Insight bullets */
+    .insights {
+      margin-top: 14px;
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .insight-line {
+      font-size: 0.87rem;
+      color: #444;
+      display: flex; align-items: flex-start; gap: 8px;
+      line-height: 1.55;
+    }
+    .insight-line .i-icon { flex-shrink: 0; font-size: 0.85rem; margin-top: 1px; }
+
+    .pos-card-foot {
+      padding: 10px 22px;
+      background: #fafafa;
+      border-top: 1px solid #f5f5f5;
+      font-size: 0.75rem; color: #bbb;
+    }
+
+    /* Insufficient data */
+    .insufficient-note {
+      padding: 20px 22px;
+      font-size: 0.88rem; color: #aaa;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* New publisher section header */
+    .section-header {
+      font-size: 0.8rem; font-weight: 600;
+      color: #aaa; margin-bottom: 14px;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <div class="header-logo">ن</div>
-    <h1>ناشر من</h1>
-    <span class="header-badge">قیمت‌گذاری</span>
+  <!-- ── Search Page ── -->
+  <div id="page-search">
+    <img src="icons/icon128.png" class="home-logo" alt="ناشر من">
+    <h1 class="home-title">ناشر من</h1>
+    <div class="home-search-wrap">
+      <div class="search-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input type="text" id="pub-input" placeholder="نام ناشر یا App ID" autocomplete="off">
+      </div>
+      <button class="search-btn" id="search-btn">جستجو</button>
+      <div id="home-err" class="home-err" style="display:none;"></div>
+    </div>
   </div>
 
-  <div class="container">
-
-    <!-- Step 1: Search -->
-    <div id="step-search" class="step active">
-      <div class="search-hero">
-        <h2>قیمت‌گذاری ناشر</h2>
-        <p>نام ناشر یا App ID را وارد کنید</p>
-      </div>
-      <div class="search-row">
-        <input type="text" id="pub-input" placeholder="مثلاً digikala یا app_id ناشر" autocomplete="off">
-        <button class="btn btn-primary" id="search-btn">جستجو</button>
-      </div>
-      <div id="search-err" class="err-box" style="display:none; max-width:520px; margin:12px auto 0;"></div>
+  <!-- ── PV Input Page (new publishers) ── -->
+  <div id="page-pv">
+    <img src="icons/icon128.png" class="pv-logo" alt="ناشر من">
+    <p class="pv-not-found">ناشر «<strong id="query-echo"></strong>» در داده‌ها یافت نشد.</p>
+    <p class="pv-sub">بازدید روزانه صفحات را وارد کنید تا ناشر مشابه پیدا کنیم</p>
+    <div class="pv-input-row">
+      <input type="number" id="pv-input" placeholder="pageview روزانه" min="1">
+      <button class="pv-btn" id="pv-btn">تحلیل کن</button>
     </div>
+    <p id="pv-err" class="pv-err" style="display:none;"></p>
+    <button class="pv-back" id="pv-back">← بازگشت</button>
+  </div>
 
-    <!-- Step 2: Position selection -->
-    <div id="step-positions" class="step">
-      <div id="pub-banner"></div>
+  <!-- ── Loading ── -->
+  <div id="page-loading">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <p id="loading-msg">در حال تحلیل داده‌ها...</p>
+  </div>
 
-      <div class="card">
-        <div class="section-label" id="pos-section-label">پوزیشن‌ها</div>
-        <div class="pos-list" id="pos-list"></div>
-        <button class="btn btn-ghost" id="add-pos-toggle">+ افزودن پوزیشن جدید</button>
-        <div id="add-pos-form" class="add-pos-form" style="display:none;">
-          <select id="new-pos-type">
-            <option value="">نوع پوزیشن را انتخاب کنید...</option>
-          </select>
-          <button class="btn btn-secondary" id="confirm-add-pos" style="padding:8px 16px; flex-shrink:0;">افزودن</button>
-        </div>
+  <!-- ── Results Page ── -->
+  <div id="page-results">
+    <div class="results-bar">
+      <img src="icons/icon128.png" class="bar-logo" alt="">
+      <span class="bar-title">ناشر من</span>
+      <div class="bar-search-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <span id="bar-query"></span>
       </div>
-
-      <div id="pv-section" class="card" style="display:none;">
-        <div class="pv-row">
-          <label>بازدید روزانه صفحات (pageview)</label>
-          <input type="number" id="pv-input" placeholder="مثلاً 50000" min="1">
-          <small>برای پیدا کردن ناشر مشابه استفاده می‌شود</small>
-        </div>
-      </div>
-
-      <div class="action-row">
-        <button class="btn btn-primary" id="calc-btn">محاسبه قیمت</button>
-        <button class="btn btn-secondary" id="back-btn">بازگشت</button>
-      </div>
-      <div id="pos-err" class="err-box" style="display:none;"></div>
+      <button class="bar-new-btn" id="new-search-btn">جستجوی جدید</button>
     </div>
-
-    <!-- Loading -->
-    <div id="step-loading" class="step">
-      <div class="loading-box">
-        <div class="spinner"></div>
-        <p id="loading-msg">در حال پردازش...</p>
-      </div>
-    </div>
-
-    <!-- Step 3: Results -->
-    <div id="step-results" class="step">
-      <div class="results-header">
-        <h2>نتایج قیمت‌گذاری</h2>
-        <span class="results-pub-chip" id="results-pub-chip"></span>
-      </div>
+    <div class="results-container">
+      <div class="pub-summary" id="pub-summary"></div>
       <div id="results-body"></div>
-      <div class="action-row">
-        <button class="btn btn-primary" id="new-search-btn">جستجوی جدید</button>
-      </div>
     </div>
-
   </div>
 
   <script src="pricing-agent.js"></script>
