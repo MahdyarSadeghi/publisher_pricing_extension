@@ -1,386 +1,349 @@
 'use strict';
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let allData        = null;   // full publisher_data.json
-let foundPub       = null;   // { appId, publisher_name, positions } | null
-let searchQuery    = '';
-let addedPositions = [];     // [{ type }] user-added new positions
+let allData     = null;
+let foundPub    = null;
+let searchQuery = '';
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const stepSearch    = $('step-search');
-const stepPositions = $('step-positions');
-const stepLoading   = $('step-loading');
-const stepResults   = $('step-results');
+const $ = id => document.getElementById(id);
 
-function showStep(name) {
-  const map = { search: stepSearch, positions: stepPositions, loading: stepLoading, results: stepResults };
-  [stepSearch, stepPositions, stepLoading, stepResults].forEach(el => el.classList.remove('active'));
-  if (map[name]) map[name].classList.add('active');
+function showPage(name) {
+  ['search','pv','loading','results'].forEach(p => {
+    const el = $('page-' + p);
+    if (!el) return;
+    el.style.display = p === name ? (p === 'search' || p === 'pv' ? 'flex' : p === 'results' ? 'block' : 'flex') : 'none';
+  });
 }
 
 function setLoading(msg) {
-  $('loading-msg').textContent = msg || 'در حال پردازش...';
-  showStep('loading');
+  $('loading-msg').textContent = msg || 'در حال تحلیل داده‌ها...';
+  showPage('loading');
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 async function loadData() {
   if (allData) return;
-  const url = chrome.runtime.getURL('data/publisher_data.json');
-  const resp = await fetch(url);
+  const resp = await fetch(chrome.runtime.getURL('data/publisher_data.json'));
   if (!resp.ok) throw new Error('خطا در بارگذاری فایل داده‌ها');
   allData = await resp.json();
-  buildTypeDropdown();
 }
 
-function buildTypeDropdown() {
-  const types = new Set();
-  for (const pub of Object.values(allData))
-    for (const pos of Object.values(pub.positions))
-      if (pos.type) types.add(pos.type);
-
-  const sel = $('new-pos-type');
-  sel.innerHTML = '<option value="">نوع پوزیشن را انتخاب کنید...</option>';
-  [...types].sort().forEach(t => {
-    const o = document.createElement('option');
-    o.value = o.textContent = t;
-    sel.appendChild(o);
-  });
-}
-
-// ── Publisher search ──────────────────────────────────────────────────────────
 function searchPublisher(q) {
   q = q.trim().toLowerCase();
   for (const [appId, pub] of Object.entries(allData)) {
     if (appId.toLowerCase() === q) return { appId, ...pub };
-    if (pub.publisher_name && pub.publisher_name.toLowerCase().includes(q)) return { appId, ...pub };
+    if (pub.publisher_name?.toLowerCase().includes(q)) return { appId, ...pub };
   }
   return null;
 }
 
 // ── Math ──────────────────────────────────────────────────────────────────────
-function pct(arr, p) {
-  if (!arr.length) return 0;
-  const s = [...arr].sort((a, b) => a - b);
-  const i = (p / 100) * (s.length - 1);
-  const lo = Math.floor(i), hi = Math.ceil(i);
-  return s[lo] + (s[hi] - s[lo]) * (i - lo);
+function mean(arr) {
+  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 }
 
-// rows: [[date, cost, pv, device], ...]  → daily RPM array
-function rowsToRPMs(rows) {
+function pct50(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+// Linear regression slope (y per unit x)
+function slope(pairs) {
+  const n = pairs.length;
+  if (n < 4) return 0;
+  let sx = 0, sy = 0, sxy = 0, sxx = 0;
+  for (const [x, y] of pairs) { sx += x; sy += y; sxy += x * y; sxx += x * x; }
+  const d = n * sxx - sx * sx;
+  return d ? (n * sxy - sx * sy) / d : 0;
+}
+
+// ── Jalali ────────────────────────────────────────────────────────────────────
+function gToJ(gy, gm, gd) {
+  const g_dm = [31,28+(gy%4===0&&(gy%100!==0||gy%400===0)?1:0),31,30,31,30,31,31,30,31,30,31];
+  let g_d = 365*gy + Math.floor((gy+3)/4) - Math.floor((gy+99)/100) + Math.floor((gy+399)/400);
+  for (let i = 0; i < gm - 1; i++) g_d += g_dm[i];
+  g_d += gd;
+  let j_d = g_d - 79;
+  const j_np = Math.floor(j_d / 12053); j_d %= 12053;
+  let jy = 979 + 33 * j_np + 4 * Math.floor(j_d / 1461); j_d %= 1461;
+  if (j_d >= 366) { jy += Math.floor((j_d - 1) / 365); j_d = (j_d - 1) % 365; }
+  const jm_d = [31,31,31,31,31,31,30,30,30,30,30,29];
+  let jm = 0;
+  for (let i = 0; i < 11 && j_d >= jm_d[i]; i++) { j_d -= jm_d[i]; jm++; }
+  return [jy, jm + 1, j_d + 1];
+}
+
+const J_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+
+function todayJalali() {
+  const n = new Date();
+  return gToJ(n.getFullYear(), n.getMonth() + 1, n.getDate());
+}
+
+// ── Aggregate rows → daily RPMs ───────────────────────────────────────────────
+// rows: [[date, cost, pv, device?], ...]
+function toDaily(rows) {
   const by = {};
   for (const [date, cost, pv] of rows) {
     if (!by[date]) by[date] = { c: 0, p: 0 };
     by[date].c += Number(cost);
     by[date].p += Number(pv);
   }
-  return Object.values(by).filter(d => d.p > 0).map(d => (d.c / d.p) * 1000);
+  return Object.entries(by)
+    .filter(([, d]) => d.p > 0)
+    .map(([date, { c, p }]) => ({ date, rpm: (c / p) * 1000 }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function pricing(rpms) {
+// ── Core agent analysis for one position ─────────────────────────────────────
+function analyzePosition(posId, pos) {
+  const daily = toDaily(pos.rows);
+  if (daily.length < 10) return { posId, pos, ok: false, n: daily.length };
+
+  const [, todayJM] = todayJalali();
+
+  // Recent average (last 30 data points)
+  const recent = daily.slice(-30);
+  const recentAvg = mean(recent.map(d => d.rpm));
+
+  // Trend: linear regression on last 60 data points
+  const tWindow = daily.slice(-60);
+  const s = slope(tWindow.map((d, i) => [i, d.rpm]));
+  const tAvg = mean(tWindow.map(d => d.rpm));
+  // % change per 30 days (one month), capped at ±50%
+  const trendPct = tAvg > 0 ? Math.max(-50, Math.min(50, (s * 30 / tAvg) * 100)) : 0;
+
+  // Seasonal analysis by Jalali month
+  const byJM = {};
+  for (const { date, rpm } of daily) {
+    const [y, m, d] = date.split('-').map(Number);
+    const [, jm] = gToJ(y, m, d);
+    if (!byJM[jm]) byJM[jm] = [];
+    byJM[jm].push(rpm);
+  }
+  const mAvg = {};
+  for (const [m, rpms] of Object.entries(byJM)) mAvg[Number(m)] = mean(rpms);
+
+  const allMAvgs = Object.values(mAvg);
+  const overallAvg = mean(allMAvgs);
+
+  // Next Jalali month
+  const nextJM = todayJM === 12 ? 1 : todayJM + 1;
+  const curMAvg  = mAvg[todayJM]  ?? overallAvg;
+  const nextMAvg = mAvg[nextJM]   ?? overallAvg;
+
+  // Seasonal index: next month vs current month
+  const seasAdj = curMAvg > 0 ? nextMAvg / curMAvg : 1;
+  // Next month vs year average (for display)
+  const nextVsAvgPct = overallAvg > 0 ? Math.round(((nextMAvg / overallAvg) - 1) * 100) : 0;
+
+  // Recommendation: project recent data forward
+  const trendFactor   = 1 + Math.max(-0.25, Math.min(0.25, (trendPct / 100) * 0.55));
+  const recommended   = Math.round(recentAvg * seasAdj * trendFactor);
+
+  // Historical median for context
+  const histMedian = Math.round(pct50(daily.map(d => d.rpm)));
+  const diffPct    = histMedian > 0 ? Math.round(((recommended - histMedian) / histMedian) * 100) : 0;
+
   return {
-    floor:  Math.round(pct(rpms, 25)),
-    target: Math.round(pct(rpms, 50)),
-    ceil:   Math.round(pct(rpms, 75)),
-    n:      rpms.length,
+    posId, pos, ok: true, n: daily.length,
+    recommended,
+    recentAvg:   Math.round(recentAvg),
+    histMedian,
+    diffPct,
+    trendPct:    Math.round(trendPct * 10) / 10,
+    curMonth:    J_MONTHS[todayJM  - 1],
+    nextMonth:   J_MONTHS[nextJM   - 1],
+    nextVsAvgPct,
+    mAvg,
   };
 }
 
-// Average daily PV for a publisher (uses first position as proxy)
-function avgDailyPV(pub) {
-  const rows = Object.values(pub.positions)[0]?.rows;
-  if (!rows?.length) return 0;
-  const by = {};
-  for (const [date,, pv] of rows) { by[date] = (by[date] || 0) + Number(pv); }
-  const vals = Object.values(by);
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
-}
+// ── Build natural language insights ──────────────────────────────────────────
+function buildInsights(a) {
+  const lines = [];
 
-// Find publishers with similar daily PV that have a given position type
-function similarPubRPMs(targetPV, excludeAppId, posType) {
-  const rpms = [];
-  let pubCount = 0;
-  for (const [appId, pub] of Object.entries(allData)) {
-    if (appId === excludeAppId) continue;
-    const pv = avgDailyPV(pub);
-    if (!pv) continue;
-    const ratio = targetPV / pv;
-    if (ratio < 0.25 || ratio > 4) continue;                   // within 4x range
-    const matching = Object.values(pub.positions).filter(p => p.type === posType);
-    if (!matching.length) continue;
-    pubCount++;
-    for (const pos of matching) rpms.push(...rowsToRPMs(pos.rows));
+  // 1. Recent baseline
+  const baseText = `میانگین ۳۰ روز اخیر: <strong>${fmt(a.recentAvg)}</strong> تومان`;
+  if (Math.abs(a.trendPct) >= 2.5) {
+    const dir   = a.trendPct > 0 ? 'صعودی' : 'نزولی';
+    const arrow = a.trendPct > 0 ? '↑' : '↓';
+    lines.push({ icon: arrow, text: `${baseText} — ترند ${dir} با نرخ <strong>${Math.abs(a.trendPct)}٪</strong> در ماه` });
+  } else {
+    lines.push({ icon: '→', text: `${baseText} — ترند تقریباً ثابت` });
   }
-  return { rpms, pubCount };
-}
 
-// ── Jalali calendar ───────────────────────────────────────────────────────────
-function gToJ(gy, gm, gd) {
-  const leap = y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-  const gDays = [31, leap(gy) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  let gDNo = 365 * gy + Math.floor((gy + 3) / 4) - Math.floor((gy + 99) / 100) + Math.floor((gy + 399) / 400);
-  for (let i = 0; i < gm - 1; i++) gDNo += gDays[i];
-  gDNo += gd;
-  let jDNo = gDNo - 79;
-  const jNp = Math.floor(jDNo / 12053); jDNo %= 12053;
-  let jy = 979 + 33 * jNp + 4 * Math.floor(jDNo / 1461); jDNo %= 1461;
-  if (jDNo >= 366) { jy += Math.floor((jDNo - 1) / 365); jDNo = (jDNo - 1) % 365; }
-  const jMDays = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
-  let jm = 0;
-  for (let i = 0; i < 11 && jDNo >= jMDays[i]; i++) { jDNo -= jMDays[i]; jm++; }
-  return [jy, jm + 1, jDNo + 1];
-}
-
-const J_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-
-// ── Seasonal analysis ─────────────────────────────────────────────────────────
-function seasonalData(rows) {
-  const byDate = {};
-  for (const [date, cost, pv] of rows) {
-    if (!byDate[date]) byDate[date] = { c: 0, p: 0, jm: null };
-    byDate[date].c += Number(cost);
-    byDate[date].p += Number(pv);
-    if (!byDate[date].jm) {
-      const [y, m, d] = date.split('-').map(Number);
-      byDate[date].jm = gToJ(y, m, d)[1];
-    }
+  // 2. Seasonal signal
+  if (Math.abs(a.nextVsAvgPct) >= 5) {
+    const dir  = a.nextVsAvgPct > 0 ? 'بالاتر' : 'پایین‌تر';
+    const sign = a.nextVsAvgPct > 0 ? '📈' : '📉';
+    lines.push({ icon: sign, text: `${a.nextMonth} تاریخاً <strong>${Math.abs(a.nextVsAvgPct)}٪</strong> ${dir} از میانگین سال` });
+  } else {
+    lines.push({ icon: '📅', text: `${a.nextMonth} از نظر فصلی تفاوت قابل‌توجهی با میانگین سال ندارد` });
   }
-  const byMonth = {};
-  for (const { c, p, jm } of Object.values(byDate)) {
-    if (!p) continue;
-    if (!byMonth[jm]) byMonth[jm] = [];
-    byMonth[jm].push((c / p) * 1000);
-  }
-  const avgs = {};
-  for (const [m, rpms] of Object.entries(byMonth))
-    avgs[Number(m)] = rpms.reduce((a, b) => a + b, 0) / rpms.length;
-  return avgs;
+
+  // 3. Recommendation rationale
+  const goodSeason = a.nextVsAvgPct >=  8;
+  const badSeason  = a.nextVsAvgPct <= -8;
+  const rising     = a.trendPct     >=  3;
+  const falling    = a.trendPct     <= -3;
+
+  if (goodSeason && rising)
+    lines.push({ icon: '💡', text: `فصل خوب + ترند صعودی — پیشنهاد با حاشیه بالاتر از میانگین تنظیم شده` });
+  else if (badSeason && falling)
+    lines.push({ icon: '💡', text: `فصل ضعیف + ترند نزولی — پیشنهاد با احتیاط پایین‌تر از میانگین` });
+  else if (goodSeason)
+    lines.push({ icon: '💡', text: `فصل پیش‌روی مناسب، قیمت‌گذاری بالاتر توجیه دارد` });
+  else if (badSeason)
+    lines.push({ icon: '💡', text: `فصل پیش‌روی ضعیف‌تر، پیشنهاد محتاطانه‌تر است` });
+  else if (rising)
+    lines.push({ icon: '💡', text: `ترند رو به رشد — پیشنهاد کمی بالاتر از اخیر تنظیم شده` });
+  else if (falling)
+    lines.push({ icon: '💡', text: `ترند نزولی — پیشنهاد با در نظر گرفتن افت احتمالی تنظیم شده` });
+  else
+    lines.push({ icon: '💡', text: `شرایط پایدار — پیشنهاد نزدیک به میانگین تاریخی` });
+
+  return lines;
 }
 
-function buildSeasonalInsight(avgs) {
-  const entries = Object.entries(avgs).map(([m, v]) => [Number(m), v]);
-  if (entries.length < 3) return null;
-  entries.sort((a, b) => b[1] - a[1]);
-  const mean = entries.reduce((s, [, v]) => s + v, 0) / entries.length;
-  const top  = entries.slice(0, 2);
-  const bot  = entries.slice(-2);
-  const topPct = Math.round((top[0][1] / mean - 1) * 100);
-  const botPct = Math.round((1 - bot[bot.length - 1][1] / mean) * 100);
-  return {
-    avgs: Object.fromEntries(entries),
-    topNames: top.map(([m]) => J_MONTHS[m - 1]),
-    botNames: bot.map(([m]) => J_MONTHS[m - 1]),
-    topPct,
-    botPct,
-  };
-}
-
-// ── Format ────────────────────────────────────────────────────────────────────
+// ── Format number (Persian) ───────────────────────────────────────────────────
 function fmt(n) {
   if (!n || isNaN(n)) return '—';
   return Math.round(n).toLocaleString('fa-IR');
 }
 
-// ── Render results ────────────────────────────────────────────────────────────
-function renderResults(items, seasonal) {
-  $('results-pub-chip').textContent = foundPub
-    ? (foundPub.publisher_name || foundPub.appId)
-    : `جدید: ${searchQuery}`;
+// ── Average daily PV (for similarity matching) ────────────────────────────────
+function avgDailyPV(pub) {
+  const rows = Object.values(pub.positions)[0]?.rows;
+  if (!rows?.length) return 0;
+  const by = {};
+  for (const [date,, pv] of rows) by[date] = (by[date] || 0) + Number(pv);
+  const vals = Object.values(by);
+  return vals.length ? mean(vals) : 0;
+}
 
+// ── Find similar publishers by daily PV ───────────────────────────────────────
+function findSimilar(targetPV, excludeId) {
+  const results = [];
+  for (const [appId, pub] of Object.entries(allData)) {
+    if (appId === excludeId) continue;
+    const pv = avgDailyPV(pub);
+    if (!pv) continue;
+    const ratio = targetPV / pv;
+    if (ratio >= 0.2 && ratio <= 5) results.push({ appId, pub, ratio });
+  }
+  results.sort((a, b) => Math.abs(Math.log(a.ratio)) - Math.abs(Math.log(b.ratio)));
+  return results.slice(0, 15);
+}
+
+// ── Render: existing publisher ────────────────────────────────────────────────
+function renderExisting(pub) {
+  const [, todayJM] = todayJalali();
+
+  $('pub-summary').innerHTML = `
+    <span class="pub-name">${pub.publisher_name || pub.appId}</span>
+    <span class="pub-appid">${pub.appId}</span>
+    <span class="pub-meta">${Object.keys(pub.positions).length} پوزیشن</span>
+  `;
+
+  const positions = Object.entries(pub.positions);
   let html = '';
 
-  for (const item of items) {
-    const { label, posId, type, p, source, pubCount } = item;
-    const note = source === 'own'
-      ? `${p.n} روز داده تاریخی`
-      : source === 'similar'
-        ? `${p.n} روز داده — ${pubCount} ناشر مشابه`
-        : null;
-
-    html += `
-      <div class="pricing-card">
-        <div class="pricing-card-head">
-          <h3>${label}</h3>
-          ${posId ? `<span class="pos-type-badge">#${posId}</span>` : ''}
-          ${type  ? `<span class="pos-type-badge">${type}</span>`   : ''}
-          ${note  ? `<span class="pricing-source-note">${note}</span>` : ''}
-        </div>
-        ${p.n >= 5 ? `
-        <div class="pricing-grid">
-          <div class="pricing-cell floor">
-            <div class="lbl">کف</div>
-            <div class="val">${fmt(p.floor)}</div>
-            <div class="unit">RPM</div>
-          </div>
-          <div class="pricing-cell target">
-            <div class="lbl">هدف</div>
-            <div class="val">${fmt(p.target)}</div>
-            <div class="unit">RPM</div>
-          </div>
-          <div class="pricing-cell ceil">
-            <div class="lbl">سقف</div>
-            <div class="val">${fmt(p.ceil)}</div>
-            <div class="unit">RPM</div>
-          </div>
-        </div>` : `
-        <div class="no-data-note">⚠️ داده کافی برای این پوزیشن یافت نشد</div>`}
-      </div>
-    `;
-  }
-
-  // Seasonal chart
-  if (seasonal) {
-    const ins = buildSeasonalInsight(seasonal);
-    if (ins) {
-      const maxV = Math.max(...Object.values(ins.avgs));
-      let bars = '';
-      for (let m = 1; m <= 12; m++) {
-        const v = ins.avgs[m] || 0;
-        const h = v ? Math.max(5, Math.round((v / maxV) * 64)) : 3;
-        const cls = ins.topNames.includes(J_MONTHS[m - 1]) ? 'peak'
-                  : ins.botNames.includes(J_MONTHS[m - 1]) ? 'low' : '';
-        bars += `<div class="month-col">
-          <div class="month-bar ${cls}" style="height:${h}px;"></div>
-          <div class="month-lbl">${J_MONTHS[m - 1].slice(0, 3)}</div>
-        </div>`;
-      }
-      html += `
-        <div class="seasonal-card">
-          <h3>📈 الگوی فصلی RPM</h3>
-          <div class="month-chart">${bars}</div>
-          <div class="insight-text">
-            اوج: <strong>${ins.topNames.join(' و ')}</strong> (تا ${ins.topPct}٪ بالاتر از میانگین)<br>
-            کمترین: <strong>${ins.botNames.join(' و ')}</strong> (تا ${ins.botPct}٪ پایین‌تر از میانگین)
-          </div>
-        </div>
-      `;
-    }
+  for (const [posId, pos] of positions) {
+    const a = analyzePosition(posId, pos);
+    html += renderCard(a);
   }
 
   $('results-body').innerHTML = html;
-  showStep('results');
 }
 
-// ── Calculate ─────────────────────────────────────────────────────────────────
-function calculate() {
-  const items = [];
-  let allRows = [];
+// ── Render: new publisher (pool from similar) ─────────────────────────────────
+function renderNewPublisher(targetPV) {
+  const similar = findSimilar(targetPV, null);
 
-  if (foundPub) {
-    const targetPV = avgDailyPV(foundPub);
-    // Checked existing positions
-    $('pos-list').querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-      const posId = cb.dataset.posid;
-      const pos   = foundPub.positions[posId];
-      if (!pos) return;
-      const rpms = rowsToRPMs(pos.rows);
-      allRows = allRows.concat(pos.rows);
-      items.push({ label: pos.desc || `پوزیشن ${posId}`, posId, type: pos.type, p: pricing(rpms), source: 'own' });
-    });
-    // User-added new positions
-    for (const np of addedPositions) {
-      const { rpms, pubCount } = similarPubRPMs(targetPV, foundPub.appId, np.type);
-      items.push({ label: 'پوزیشن جدید', posId: null, type: np.type, p: pricing(rpms), source: 'similar', pubCount });
-    }
-  } else {
-    const targetPV = Number($('pv-input').value) || 0;
-    for (const np of addedPositions) {
-      const { rpms, pubCount } = similarPubRPMs(targetPV, null, np.type);
-      items.push({ label: 'پوزیشن جدید', posId: null, type: np.type, p: pricing(rpms), source: 'similar', pubCount });
+  $('pub-summary').innerHTML = `
+    <span class="pub-name">ناشر جدید</span>
+    <span class="pub-appid" style="color:#888;">بر اساس ${similar.length} ناشر مشابه</span>
+    <span class="pub-meta">بازدید روزانه: ${fmt(targetPV)}</span>
+  `;
+
+  if (!similar.length) {
+    $('results-body').innerHTML = `<div style="color:#aaa;padding:40px 0;text-align:center;font-size:0.9rem;">ناشر مشابهی با این حجم بازدید در داده‌ها یافت نشد.</div>`;
+    return;
+  }
+
+  // Pool positions by type across similar publishers
+  const byType = {};
+  for (const { pub } of similar) {
+    for (const pos of Object.values(pub.positions)) {
+      const t = pos.type || 'unknown';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(...pos.rows);
     }
   }
 
-  // Seasonal — use all rows from found pub's positions if available
-  if (!allRows.length && foundPub) {
-    for (const pos of Object.values(foundPub.positions)) allRows = allRows.concat(pos.rows);
-  }
-  const seasonal = allRows.length ? seasonalData(allRows) : null;
+  // Sort types by data volume
+  const types = Object.entries(byType)
+    .filter(([, rows]) => rows.length >= 10)
+    .sort((a, b) => b[1].length - a[1].length);
 
-  renderResults(items, seasonal);
+  let html = `<div class="section-header">پوزیشن‌های رایج در ناشران مشابه</div>`;
+
+  for (const [type, rows] of types) {
+    const syntheticPos = { desc: type, type, rows };
+    const a = analyzePosition('—', syntheticPos);
+    html += renderCard(a);
+  }
+
+  $('results-body').innerHTML = html;
 }
 
-// ── Build step 2 UI ───────────────────────────────────────────────────────────
-function buildPositionsStep() {
-  addedPositions = [];
-
-  const banner = $('pub-banner');
-  const posList = $('pos-list');
-  posList.innerHTML = '';
-  $('add-pos-form').style.display = 'none';
-
-  if (foundPub) {
-    banner.innerHTML = `
-      <div class="pub-banner found">
-        <div class="pub-banner-icon">✅</div>
-        <div>
-          <div class="pub-banner-name">${foundPub.publisher_name || foundPub.appId}</div>
-          <div class="pub-banner-id">${foundPub.appId}</div>
+// ── Render a single position card ─────────────────────────────────────────────
+function renderCard(a) {
+  if (!a.ok) {
+    return `
+      <div class="pos-card">
+        <div class="pos-card-head">
+          <span class="pos-card-name">${a.pos.desc || a.pos.type || 'پوزیشن'}</span>
+          ${a.posId && a.posId !== '—' ? `<span class="pos-card-id">#${a.posId}</span>` : ''}
+          ${a.pos.type ? `<span class="pos-card-badge">${a.pos.type}</span>` : ''}
         </div>
+        <div class="insufficient-note">⚠️ داده کافی موجود نیست (${a.n} روز)</div>
       </div>`;
-    $('pos-section-label').textContent = 'پوزیشن‌های موجود را انتخاب کنید';
-    $('pv-section').style.display = 'none';
-
-    for (const [posId, pos] of Object.entries(foundPub.positions)) {
-      const rpms = rowsToRPMs(pos.rows);
-      const med  = rpms.length ? Math.round(pct(rpms, 50)) : null;
-      const label = document.createElement('label');
-      label.className = 'pos-item selected';
-      label.innerHTML = `
-        <input type="checkbox" checked data-posid="${posId}">
-        <div class="pos-item-info">
-          <div class="pos-item-desc">${pos.desc || 'بدون توضیح'}</div>
-          <div class="pos-item-meta">
-            <span class="pos-item-id">#${posId}</span>
-            ${pos.type ? `<span class="pos-type-badge">${pos.type}</span>` : ''}
-          </div>
-        </div>
-        ${med ? `<span class="pos-rpm-hint">میانه: ${med.toLocaleString('fa-IR')}</span>` : ''}
-      `;
-      label.querySelector('input').addEventListener('change', e => {
-        label.classList.toggle('selected', e.target.checked);
-      });
-      posList.appendChild(label);
-    }
-  } else {
-    banner.innerHTML = `
-      <div class="pub-banner not-found">
-        <div class="pub-banner-icon">⚠️</div>
-        <div>
-          <div class="pub-banner-name">ناشر «${searchQuery}» در داده‌ها یافت نشد</div>
-          <div class="pub-banner-sub">پوزیشن‌های مورد نظر و بازدید روزانه را وارد کنید</div>
-        </div>
-      </div>`;
-    $('pos-section-label').textContent = 'پوزیشن‌های مورد نظر را اضافه کنید';
-    $('pv-section').style.display = '';
   }
 
-  showStep('positions');
-}
+  const diffCls  = a.diffPct > 8 ? 'up' : a.diffPct < -8 ? 'down' : 'flat';
+  const diffText = a.diffPct > 0 ? `+${a.diffPct}٪` : a.diffPct < 0 ? `${a.diffPct}٪` : 'میانگین';
+  const diffLabel = a.diffPct > 8 ? 'بالاتر از میانگین' : a.diffPct < -8 ? 'پایین‌تر از میانگین' : 'نزدیک میانگین';
 
-function renderAddedPositions() {
-  // remove old added items
-  $('pos-list').querySelectorAll('.added-pos-item').forEach(el => el.remove());
-  addedPositions.forEach((np, i) => {
-    const div = document.createElement('div');
-    div.className = 'add-pos-new-item added-pos-item';
-    div.innerHTML = `
-      <div class="pos-item-info">
-        <div class="pos-item-desc">پوزیشن جدید</div>
-        <div class="pos-item-meta"><span class="pos-type-badge">${np.type}</span></div>
+  const insights = buildInsights(a);
+  const insightHtml = insights.map(l =>
+    `<div class="insight-line"><span class="i-icon">${l.icon}</span><span>${l.text}</span></div>`
+  ).join('');
+
+  return `
+    <div class="pos-card">
+      <div class="pos-card-head">
+        <span class="pos-card-name">${a.pos.desc || a.pos.type || 'پوزیشن'}</span>
+        ${a.posId && a.posId !== '—' ? `<span class="pos-card-id">#${a.posId}</span>` : ''}
+        ${a.pos.type ? `<span class="pos-card-badge">${a.pos.type}</span>` : ''}
       </div>
-      <button class="remove-btn" data-i="${i}" title="حذف">✕</button>
-    `;
-    div.querySelector('.remove-btn').addEventListener('click', e => {
-      addedPositions.splice(Number(e.currentTarget.dataset.i), 1);
-      renderAddedPositions();
-    });
-    $('pos-list').appendChild(div);
-  });
+      <div class="pos-card-body">
+        <div class="rec-row">
+          <span class="rec-number">${fmt(a.recommended)}</span>
+          <span class="rec-unit">تومان / RPM</span>
+          <span class="rec-diff ${diffCls}">${diffText} — ${diffLabel}</span>
+        </div>
+        <div class="insights">${insightHtml}</div>
+      </div>
+      <div class="pos-card-foot">بر اساس ${a.n} روز داده · میانه تاریخی: ${fmt(a.histMedian)}</div>
+    </div>`;
 }
 
-// ── Event listeners ───────────────────────────────────────────────────────────
+// ── Event handlers ────────────────────────────────────────────────────────────
 $('search-btn').addEventListener('click', handleSearch);
 $('pub-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
 
@@ -388,71 +351,55 @@ async function handleSearch() {
   const q = $('pub-input').value.trim();
   if (!q) return;
   searchQuery = q;
-  $('search-err').style.display = 'none';
+  $('home-err').style.display = 'none';
+
   setLoading('در حال جستجو...');
   try {
     await loadData();
   } catch (e) {
-    $('search-err').textContent = e.message;
-    $('search-err').style.display = '';
-    showStep('search');
+    $('home-err').textContent = e.message;
+    $('home-err').style.display = '';
+    showPage('search');
     return;
   }
+
   foundPub = searchPublisher(q);
-  buildPositionsStep();
-}
-
-$('add-pos-toggle').addEventListener('click', () => {
-  const f = $('add-pos-form');
-  f.style.display = f.style.display === 'none' ? '' : 'none';
-});
-
-$('confirm-add-pos').addEventListener('click', () => {
-  const t = $('new-pos-type').value;
-  if (!t) return;
-  addedPositions.push({ type: t });
-  renderAddedPositions();
-  $('add-pos-form').style.display = 'none';
-  $('new-pos-type').value = '';
-});
-
-$('calc-btn').addEventListener('click', () => {
-  const err = $('pos-err');
-  err.style.display = 'none';
 
   if (foundPub) {
-    const checked = $('pos-list').querySelectorAll('input[type="checkbox"]:checked');
-    if (checked.length === 0 && addedPositions.length === 0) {
-      err.textContent = 'حداقل یک پوزیشن را انتخاب کنید';
-      err.style.display = '';
-      return;
-    }
+    setLoading('در حال تحلیل داده‌ها...');
+    await new Promise(r => setTimeout(r, 300)); // brief pause for UX
+    $('bar-query').textContent = foundPub.publisher_name || q;
+    renderExisting(foundPub);
+    showPage('results');
   } else {
-    if (addedPositions.length === 0) {
-      err.textContent = 'حداقل یک پوزیشن اضافه کنید';
-      err.style.display = '';
-      return;
-    }
-    const pv = Number($('pv-input').value);
-    if (!pv || pv <= 0) {
-      err.textContent = 'بازدید روزانه صفحات را وارد کنید';
-      err.style.display = '';
-      return;
-    }
+    $('query-echo').textContent = q;
+    showPage('pv');
   }
+}
 
-  calculate();
+$('pv-btn').addEventListener('click', async () => {
+  const pv = Number($('pv-input').value);
+  $('pv-err').style.display = 'none';
+  if (!pv || pv <= 0) {
+    $('pv-err').textContent = 'بازدید روزانه را وارد کنید';
+    $('pv-err').style.display = '';
+    return;
+  }
+  setLoading('در حال جستجوی ناشران مشابه...');
+  await new Promise(r => setTimeout(r, 300));
+  $('bar-query').textContent = `ناشر جدید — ${fmt(pv)} pageview`;
+  renderNewPublisher(pv);
+  showPage('results');
 });
 
-$('back-btn').addEventListener('click', () => {
-  foundPub = null;
-  addedPositions = [];
-  showStep('search');
+$('pv-back').addEventListener('click', () => {
+  $('pv-input').value = '';
+  showPage('search');
 });
 
 $('new-search-btn').addEventListener('click', () => {
   foundPub = null;
-  addedPositions = [];
   $('pub-input').value = '';
-  showStep('search');
+  $('pv-input').value = '';
+  showPage('search');
 });
