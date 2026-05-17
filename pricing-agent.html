@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>قیمت‌گذاری ناشر — ناشر من</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+      background: #f5f5f7;
+      color: #1a1a2e;
+      min-height: 100vh;
+      direction: rtl;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e8e8e8;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-logo {
+      width: 28px; height: 28px;
+      background: #FDD015;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.85rem;
+    }
+    .header h1 { font-size: 1rem; font-weight: 600; }
+    .header-badge {
+      background: #1a1a2e; color: #FDD015;
+      font-size: 0.68rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px;
+    }
+
+    /* ── Container ── */
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Steps ── */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    /* ── Step 1: Search ── */
+    .search-hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .search-hero h2 {
+      font-size: 1.9rem; font-weight: 700;
+      margin-bottom: 8px; line-height: 1.4;
+    }
+    .search-hero p { color: #777; font-size: 0.95rem; }
+
+    .search-row {
+      display: flex; gap: 8px;
+      max-width: 520px; margin: 0 auto;
+    }
+    .search-row input {
+      flex: 1;
+      padding: 13px 18px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-family: inherit; font-size: 0.95rem;
+      outline: none; transition: border-color 0.18s;
+    }
+    .search-row input:focus { border-color: #FDD015; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 11px 22px;
+      border: none; border-radius: 10px;
+      font-family: inherit; font-size: 0.92rem; font-weight: 600;
+      cursor: pointer; transition: all 0.18s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: #FDD015; color: #1a1a2e; }
+    .btn-primary:hover { background: #e8c000; transform: translateY(-1px); }
+    .btn-primary:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: #f0f0f0; color: #333; }
+    .btn-secondary:hover { background: #e4e4e4; }
+    .btn-ghost {
+      background: transparent;
+      border: 2px dashed #d0d0d0;
+      color: #666; width: 100%;
+      padding: 10px; margin-top: 8px;
+    }
+    .btn-ghost:hover { border-color: #FDD015; color: #1a1a2e; }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff; border-radius: 14px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      margin-bottom: 14px;
+    }
+    .section-label {
+      font-size: 0.78rem; font-weight: 600;
+      color: #999; text-transform: uppercase;
+      letter-spacing: 0.04em; margin-bottom: 10px;
+    }
+
+    /* ── Publisher status banners ── */
+    .pub-banner {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 16px 20px; border-radius: 12px; margin-bottom: 16px;
+    }
+    .pub-banner.found { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .pub-banner.not-found { background: #fff7ed; border: 1px solid #fed7aa; }
+    .pub-banner-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+    .pub-banner-name { font-weight: 700; font-size: 1rem; }
+    .pub-banner-id { font-size: 0.78rem; color: #777; font-family: monospace; margin-top: 2px; }
+    .pub-banner-sub { font-size: 0.85rem; color: #666; margin-top: 2px; }
+
+    /* ── Position list ── */
+    .pos-list { display: flex; flex-direction: column; gap: 7px; }
+    .pos-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 14px;
+      border: 1.5px solid #e8e8e8; border-radius: 10px;
+      cursor: pointer; transition: all 0.15s;
+      user-select: none;
+    }
+    .pos-item:hover { border-color: #FDD015; background: #fffef0; }
+    .pos-item.selected { border-color: #FDD015; background: #fffef0; }
+    .pos-item input[type="checkbox"] {
+      width: 17px; height: 17px;
+      accent-color: #1a1a2e; cursor: pointer; flex-shrink: 0;
+    }
+    .pos-item-info { flex: 1; min-width: 0; }
+    .pos-item-desc { font-size: 0.92rem; font-weight: 500; }
+    .pos-item-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+    .pos-item-id { font-size: 0.75rem; color: #aaa; font-family: monospace; }
+    .pos-type-badge {
+      font-size: 0.7rem; background: #f2f2f2;
+      padding: 2px 7px; border-radius: 20px; color: #666;
+    }
+    .pos-rpm-hint { font-size: 0.75rem; color: #aaa; margin-right: auto; flex-shrink: 0; }
+
+    /* ── New position inline form ── */
+    .add-pos-form {
+      display: flex; gap: 8px; align-items: center;
+      padding: 10px 12px;
+      border: 2px dashed #ddd; border-radius: 10px; margin-top: 8px;
+    }
+    .add-pos-form select {
+      flex: 1; padding: 8px 10px;
+      border: 1.5px solid #ddd; border-radius: 8px;
+      font-family: inherit; font-size: 0.88rem; direction: rtl;
+      outline: none; background: #fff;
+    }
+    .add-pos-form select:focus { border-color: #FDD015; }
+    .add-pos-new-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      border: 1.5px solid #FDD015; border-radius: 10px; background: #fffef0;
+    }
+    .add-pos-new-item .pos-item-info { flex: 1; }
+    .remove-btn {
+      background: none; border: none; cursor: pointer;
+      color: #dc2626; font-size: 1rem; padding: 2px 4px;
+      line-height: 1;
+    }
+
+    /* ── PV input ── */
+    .pv-row { display: flex; flex-direction: column; gap: 6px; }
+    .pv-row label { font-size: 0.88rem; color: #555; font-weight: 500; }
+    .pv-row input {
+      padding: 10px 14px;
+      border: 2px solid #e0e0e0; border-radius: 10px;
+      font-family: inherit; font-size: 0.95rem;
+      direction: ltr; text-align: right; width: 220px; outline: none;
+    }
+    .pv-row input:focus { border-color: #FDD015; }
+    .pv-row small { font-size: 0.78rem; color: #aaa; }
+
+    /* ── Action row ── */
+    .action-row { display: flex; gap: 8px; margin-top: 20px; }
+
+    /* ── Error ── */
+    .err-box {
+      background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; border-radius: 10px;
+      padding: 10px 14px; font-size: 0.88rem; margin-top: 10px;
+    }
+
+    /* ── Loading ── */
+    .loading-box { text-align: center; padding: 60px 24px; }
+    .spinner {
+      display: inline-block; width: 30px; height: 30px;
+      border: 3px solid #e8e8e8; border-top-color: #FDD015;
+      border-radius: 50%; animation: spin 0.75s linear infinite;
+      margin-bottom: 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-box p { color: #777; font-size: 0.9rem; }
+
+    /* ── Results ── */
+    .results-header {
+      display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px;
+    }
+    .results-header h2 { font-size: 1.2rem; font-weight: 700; }
+    .results-pub-chip {
+      font-size: 0.8rem; background: #1a1a2e; color: #FDD015;
+      padding: 3px 10px; border-radius: 20px;
+    }
+
+    .pricing-card {
+      background: #fff; border-radius: 14px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      margin-bottom: 14px;
+    }
+    .pricing-card-head {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+    }
+    .pricing-card-head h3 { font-size: 0.97rem; font-weight: 700; flex: 1; }
+    .pricing-source-note { font-size: 0.75rem; color: #aaa; }
+
+    .pricing-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .pricing-cell {
+      text-align: center; padding: 14px 10px; border-radius: 12px;
+    }
+    .pricing-cell.floor  { background: #eff6ff; border: 1.5px solid #bfdbfe; }
+    .pricing-cell.target { background: #fffbeb; border: 2px solid #FDD015; }
+    .pricing-cell.ceil   { background: #f0fdf4; border: 1.5px solid #bbf7d0; }
+    .pricing-cell .lbl { font-size: 0.75rem; color: #888; margin-bottom: 5px; }
+    .pricing-cell .val { font-size: 1.35rem; font-weight: 700; line-height: 1; }
+    .pricing-cell.floor  .val { color: #1d4ed8; }
+    .pricing-cell.target .val { color: #78350f; }
+    .pricing-cell.ceil   .val { color: #14532d; }
+    .pricing-cell .unit { font-size: 0.7rem; color: #bbb; margin-top: 4px; }
+
+    .no-data-note {
+      text-align: center; color: #f59e0b; font-size: 0.83rem; padding: 8px 0;
+    }
+
+    /* ── Seasonal chart ── */
+    .seasonal-card {
+      background: #fff; border-radius: 14px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+      margin-bottom: 20px;
+    }
+    .seasonal-card h3 { font-size: 0.97rem; font-weight: 700; margin-bottom: 16px; }
+    .month-chart {
+      display: grid; grid-template-columns: repeat(12, 1fr);
+      gap: 3px; align-items: end; height: 72px; margin-bottom: 8px;
+    }
+    .month-col { display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+    .month-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; background: #e5e7eb; }
+    .month-bar.peak { background: #FDD015; }
+    .month-bar.low  { background: #fca5a5; }
+    .month-lbl { font-size: 0.55rem; color: #bbb; margin-top: 3px; white-space: nowrap; }
+    .insight-text { font-size: 0.88rem; color: #555; line-height: 1.75; }
+    .insight-text strong { color: #1a1a2e; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-logo">ن</div>
+    <h1>ناشر من</h1>
+    <span class="header-badge">قیمت‌گذاری</span>
+  </div>
+
+  <div class="container">
+
+    <!-- Step 1: Search -->
+    <div id="step-search" class="step active">
+      <div class="search-hero">
+        <h2>قیمت‌گذاری ناشر</h2>
+        <p>نام ناشر یا App ID را وارد کنید</p>
+      </div>
+      <div class="search-row">
+        <input type="text" id="pub-input" placeholder="مثلاً digikala یا app_id ناشر" autocomplete="off">
+        <button class="btn btn-primary" id="search-btn">جستجو</button>
+      </div>
+      <div id="search-err" class="err-box" style="display:none; max-width:520px; margin:12px auto 0;"></div>
+    </div>
+
+    <!-- Step 2: Position selection -->
+    <div id="step-positions" class="step">
+      <div id="pub-banner"></div>
+
+      <div class="card">
+        <div class="section-label" id="pos-section-label">پوزیشن‌ها</div>
+        <div class="pos-list" id="pos-list"></div>
+        <button class="btn btn-ghost" id="add-pos-toggle">+ افزودن پوزیشن جدید</button>
+        <div id="add-pos-form" class="add-pos-form" style="display:none;">
+          <select id="new-pos-type">
+            <option value="">نوع پوزیشن را انتخاب کنید...</option>
+          </select>
+          <button class="btn btn-secondary" id="confirm-add-pos" style="padding:8px 16px; flex-shrink:0;">افزودن</button>
+        </div>
+      </div>
+
+      <div id="pv-section" class="card" style="display:none;">
+        <div class="pv-row">
+          <label>بازدید روزانه صفحات (pageview)</label>
+          <input type="number" id="pv-input" placeholder="مثلاً 50000" min="1">
+          <small>برای پیدا کردن ناشر مشابه استفاده می‌شود</small>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="calc-btn">محاسبه قیمت</button>
+        <button class="btn btn-secondary" id="back-btn">بازگشت</button>
+      </div>
+      <div id="pos-err" class="err-box" style="display:none;"></div>
+    </div>
+
+    <!-- Loading -->
+    <div id="step-loading" class="step">
+      <div class="loading-box">
+        <div class="spinner"></div>
+        <p id="loading-msg">در حال پردازش...</p>
+      </div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div id="step-results" class="step">
+      <div class="results-header">
+        <h2>نتایج قیمت‌گذاری</h2>
+        <span class="results-pub-chip" id="results-pub-chip"></span>
+      </div>
+      <div id="results-body"></div>
+      <div class="action-row">
+        <button class="btn btn-primary" id="new-search-btn">جستجوی جدید</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="pricing-agent.js"></script>
+</body>
+</html>
