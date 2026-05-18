@@ -141,7 +141,7 @@ async function* streamLLM(system, user) {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${OPENROUTER_KEY}`,
       'HTTP-Referer':  'https://yektanet.com',
-      'X-Title':       'ناشر من — قیمت‌گذاری',
+      'X-Title':       'Publisher Pricing Agent',
     },
     body: JSON.stringify({
       model:       LLM_MODEL,
@@ -320,9 +320,88 @@ function fmt(n) {
   return Math.round(n).toLocaleString('fa-IR');
 }
 
+// ── Autocomplete ──────────────────────────────────────────────────────────────
+let acIndex = -1;
+
+function getSuggestions(q) {
+  if (!allData || !q || q.length < 2) return [];
+  q = q.toLowerCase();
+  const results = [];
+  for (const [appId, pub] of Object.entries(allData)) {
+    const nameMatch = pub.publisher_name?.toLowerCase().includes(q);
+    const idMatch   = appId.toLowerCase().includes(q);
+    if (nameMatch || idMatch) results.push({ appId, name: pub.publisher_name || appId });
+    if (results.length >= 8) break;
+  }
+  return results;
+}
+
+function renderSuggestions(items) {
+  const box = $('suggestions');
+  if (!items.length) { box.style.display = 'none'; return; }
+  box.innerHTML = items.map((it, i) =>
+    `<div class="sug-item" data-appid="${it.appId}" data-idx="${i}">
+       <span class="sug-name">${it.name}</span>
+       <span class="sug-id">${it.appId}</span>
+     </div>`
+  ).join('');
+  box.style.display = '';
+  acIndex = -1;
+}
+
+function closeSuggestions() {
+  $('suggestions').style.display = 'none';
+  acIndex = -1;
+}
+
+function highlightSuggestion(idx) {
+  const items = $('suggestions').querySelectorAll('.sug-item');
+  items.forEach((el, i) => el.classList.toggle('sug-active', i === idx));
+}
+
+// Load data in background so autocomplete is ready
+window.addEventListener('load', () => {
+  loadData().catch(() => {});
+});
+
+$('suggestions').addEventListener('mousedown', e => {
+  const item = e.target.closest('.sug-item');
+  if (!item) return;
+  e.preventDefault();
+  $('pub-input').value = item.dataset.appid;
+  closeSuggestions();
+  handleSearch();
+});
+
+$('pub-input').addEventListener('input', () => {
+  const q = $('pub-input').value;
+  renderSuggestions(getSuggestions(q));
+});
+
+$('pub-input').addEventListener('keydown', e => {
+  const box   = $('suggestions');
+  const items = box.querySelectorAll('.sug-item');
+  if (box.style.display !== 'none' && items.length) {
+    if (e.key === 'ArrowDown')  { e.preventDefault(); acIndex = Math.min(acIndex+1, items.length-1); highlightSuggestion(acIndex); return; }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); acIndex = Math.max(acIndex-1, -1); highlightSuggestion(acIndex); return; }
+    if (e.key === 'Enter' && acIndex >= 0) {
+      e.preventDefault();
+      $('pub-input').value = items[acIndex].dataset.appid;
+      closeSuggestions();
+      handleSearch();
+      return;
+    }
+    if (e.key === 'Escape') { closeSuggestions(); return; }
+  }
+  if (e.key === 'Enter') handleSearch();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap-pos')) closeSuggestions();
+});
+
 // ── Event handlers ────────────────────────────────────────────────────────────
 $('search-btn').addEventListener('click', handleSearch);
-$('pub-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
 
 async function handleSearch() {
   const q = $('pub-input').value.trim();
