@@ -88,6 +88,30 @@ function toDaily(rows) {
     .sort((a,b) => a.date.localeCompare(b.date));
 }
 
+// ── Compute publisher-level monthly RPM trend (from فروردین 1404) ────────────
+function computeMonthlyTrend(positions) {
+  const byYM = {};
+  for (const pos of Object.values(positions)) {
+    for (const row of pos.rows) {
+      const [date, cost, pv] = row;
+      const [y, m, d] = date.split('-').map(Number);
+      const [jy, jm] = gToJ(y, m, d);
+      if (jy < 1404) continue;
+      const key = `${jy}-${String(jm).padStart(2, '0')}`;
+      if (!byYM[key]) byYM[key] = { cost: 0, pv: 0, jy, jm };
+      byYM[key].cost += Number(cost);
+      byYM[key].pv   += Number(pv);
+    }
+  }
+  return Object.entries(byYM)
+    .filter(([, d]) => d.pv > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, d]) => ({
+      label: `${J_MONTHS[d.jm - 1]} ${d.jy}`,
+      rpm:   Math.round((d.cost / d.pv) * 1000),
+    }));
+}
+
 // ── Compute position stats for LLM context ───────────────────────────────────
 function computeStats(posId, desc, type, rows) {
   const daily = toDaily(rows);
@@ -103,33 +127,18 @@ function computeStats(posId, desc, type, rows) {
 
   const hist = Math.round(pct50(daily.map(d => d.rpm)));
 
-  const byJM = {};
-  for (const {date, rpm} of daily) {
-    const [y,m,d] = date.split('-').map(Number);
-    const [,jm] = gToJ(y,m,d);
-    if (!byJM[jm]) byJM[jm] = [];
-    byJM[jm].push(rpm);
-  }
-  const monthly = {};
-  for (const [m, rpms] of Object.entries(byJM)) monthly[Number(m)] = Math.round(mean(rpms));
-
   return { id: posId, desc: desc||type||'—', type: type||'—',
            recent_30d: Math.round(recentAvg), trend_pct: trend,
-           hist_median: hist, monthly, days: daily.length };
+           hist_median: hist, days: daily.length };
 }
 
-// ── Build structured context string for LLM ───────────────────────────────────
+// ── Build position context string for LLM ────────────────────────────────────
 function buildContext(stats) {
   return stats.map(p => {
     const sign = p.trend_pct > 0 ? '+' : '';
     const dir  = p.trend_pct > 2 ? 'صعودی' : p.trend_pct < -2 ? 'نزولی' : 'ثابت';
-    const months = Object.entries(p.monthly)
-      .sort(([a],[b]) => Number(a)-Number(b))
-      .map(([m,v]) => `${J_MONTHS[Number(m)-1].slice(0,3)}:${v.toLocaleString()}`)
-      .join('  ');
     return `▸ ${p.desc} (${p.type}) #${p.id}
   میانگین ۳۰ روز: ${p.recent_30d.toLocaleString()} تومان | ترند: ${sign}${p.trend_pct}٪/ماه [${dir}] | میانه: ${p.hist_median.toLocaleString()} تومان
-  ماهانه: ${months}
   داده: ${p.days} روز`;
   }).join('\n\n');
 }
@@ -150,7 +159,7 @@ async function* streamLLM(system, user) {
     body: JSON.stringify({
       model:       LLM_MODEL,
       stream:      true,
-      max_tokens:  1600,
+      max_tokens:  1200,
       temperature: 0.2,
       messages:    [{ role:'system', content:system }, { role:'user', content:user }],
     }),
@@ -183,19 +192,50 @@ async function* streamLLM(system, user) {
   }
 }
 
-// ── Minimal markdown → HTML ───────────────────────────────────────────────────
+// ── Markdown → HTML (with table support) ─────────────────────────────────────
 function md(text) {
-  return text
-    .replace(/^## (.+)$/gm,  '<h2 class="md-h2">$1</h2>')
-    .replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^---$/gm, '<hr class="md-hr">')
-    .replace(/^[•\-] (.+)$/gm, '<div class="md-bullet">• $1</div>')
-    .replace(/\n/g, '<br>');
+  const lines = text.split('\n');
+  const out   = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trimStart().startsWith('|')) {
+      const block = [];
+      while (i < lines.length && lines[i].trimStart().startsWith('|')) {
+        block.push(lines[i]);
+        i++;
+      }
+      out.push(mdTable(block));
+    } else {
+      out.push(mdLine(line));
+      i++;
+    }
+  }
+  return out.join('');
+}
+
+function mdTable(lines) {
+  const rows = lines.filter(l => !/^\s*\|[-| :]+\|\s*$/.test(l));
+  if (!rows.length) return '';
+  return '<table class="md-table">' + rows.map((line, idx) => {
+    const cells = line.split('|').slice(1, -1).map(c => c.trim());
+    const tag = idx === 0 ? 'th' : 'td';
+    return `<tr>${cells.map(c => `<${tag}>${c}</${tag}>`).join('')}</tr>`;
+  }).join('') + '</table>';
+}
+
+function mdLine(line) {
+  if (/^## /.test(line))    return line.replace(/^## (.+)$/, '<h2 class="md-h2">$1</h2>');
+  if (/^### /.test(line))   return line.replace(/^### (.+)$/, '<h3 class="md-h3">$1</h3>');
+  if (/^---$/.test(line))   return '<hr class="md-hr">';
+  if (/^[•\-] /.test(line)) return line.replace(/^[•\-] (.+)$/, '<div class="md-bullet">• $1</div>');
+  line = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  if (!line.trim()) return '';
+  return line + '<br>';
 }
 
 // ── Core: run LLM analysis and stream into the page ───────────────────────────
-async function runAnalysis(pubName, appId, stats, extraContext) {
+async function runAnalysis(pubName, appId, stats, extraContext, monthlyTrend) {
   const [jy, jm] = todayJalali();
 
   const SYSTEM = `تو متخصص قیمت‌گذاری تبلیغات دیجیتال در شبکه یکتانت هستی.
@@ -203,28 +243,32 @@ async function runAnalysis(pubName, appId, stats, extraContext) {
 RPM = درآمد به ازای هر ۱۰۰۰ پیج‌ویو (واحد: تومان).
 تاریخ امروز: ${J_MONTHS[jm-1]} ${jy}.
 
+خروجی باید دقیقاً دو بخش داشته باشد، بدون هیچ توضیح اضافه:
+
+## تحلیل و پیش‌بینی
+سه تا چهار جمله: روند کلی چند ماه گذشته، فصلیت، و اینکه چه RPMی برای سال پیش رو منطقی است.
+
+## جدول پوزیشن‌ها
+| نام جایگاه | نوع | RPM پیشنهادی (تومان) |
+|---|---|---|
+| ... | ... | ... |
+
+**توصیه تیم فروش:** [یک جمله عملی]
+
 اصول:
-- برای هر جایگاه یک عدد دقیق بده (نه بازه).
-- یک جمله دلیل: ترند + فصلیت + مقایسه با میانه.
-- اگر ترند صعودی است، بالاتر از میانه پیشنهاد بده.
-- اگر ماه آینده تاریخاً بهتر/بدتر است، در عدد لحاظ کن.
-- در انتها یک توصیه کوتاه برای تیم فروش.
+- اعداد را با کاما جدا کن (مثلاً ۱۲,۳۴۵).
+- RPM پیشنهادی باید واقع‌بینانه و نزدیک به میانه تاریخی باشد.
+- اگر ترند صعودی است، کمی بالاتر از میانه پیشنهاد بده.
+- فصلیت ماه‌های آینده را در نظر بگیر.`;
 
-فرمت دقیق:
-## [نام ناشر]
-[یک جمله وضعیت کلی]
+  const trendCtx = monthlyTrend?.length
+    ? `ترند ماهانه کل ناشر (از فروردین ۱۴۰۴):\n${monthlyTrend.map(m => `${m.label}: ${m.rpm.toLocaleString()} تومان`).join('\n')}`
+    : '';
 
-### [نام جایگاه] · [نوع] · #[شناسه]
-**پیشنهاد: [عدد] تومان RPM**
-[دلیل — یک جمله]
-
----
-**توصیه تیم فروش:** [یک جمله عملی]`;
-
-  const context = buildContext(stats);
-  const USER = extraContext
-    ? `${extraContext}\n\n${context}`
-    : `ناشر: ${pubName} (${appId})\n\n${context}`;
+  let USER = `ناشر: ${pubName} (${appId})\n\n`;
+  if (extraContext) USER += extraContext + '\n\n';
+  if (trendCtx)    USER += trendCtx + '\n\n';
+  USER += buildContext(stats);
 
   const outEl = $('stream-output');
   const curEl = $('stream-cursor');
@@ -264,10 +308,27 @@ function findSimilar(targetPV, excludeId) {
   return out.sort((a,b) => Math.abs(Math.log(a.r)) - Math.abs(Math.log(b.r))).slice(0, 15);
 }
 
-// ── Setup results page shell ──────────────────────────────────────────────────
-function setupResults(queryLabel) {
+// ── Setup results page (with static monthly trend table) ─────────────────────
+function setupResults(queryLabel, monthlyTrend) {
   $('bar-query').textContent = queryLabel;
+
+  let trendHtml = '';
+  if (monthlyTrend && monthlyTrend.length) {
+    const rows = monthlyTrend.map(m =>
+      `<tr><td>${m.label}</td><td>${m.rpm.toLocaleString()}</td></tr>`
+    ).join('');
+    trendHtml = `
+      <div class="section-block">
+        <h2 class="md-h2">ترند ماهانه RPM</h2>
+        <table class="md-table">
+          <tr><th>ماه</th><th>RPM (تومان)</th></tr>
+          ${rows}
+        </table>
+      </div>`;
+  }
+
   $('results-body').innerHTML = `
+    ${trendHtml}
     <div id="stream-output" class="stream-output">
       <span style="color:#ccc;font-size:0.88rem;">در حال تحلیل...</span>
     </div>
@@ -281,11 +342,14 @@ async function renderExisting(pub) {
     <span class="pub-row-id">${pub.appId}</span>
     <span class="pub-row-meta">${Object.keys(pub.positions).length} جایگاه</span>`;
 
+  const monthlyTrend = computeMonthlyTrend(pub.positions);
   const stats = Object.entries(pub.positions)
     .map(([id, p]) => computeStats(id, p.desc, p.type, p.rows))
     .filter(Boolean);
 
-  await runAnalysis(pub.publisher_name || pub.appId, pub.appId, stats, null);
+  setupResults(pub.publisher_name || pub.appId, monthlyTrend);
+  showPage('results');
+  await runAnalysis(pub.publisher_name || pub.appId, pub.appId, stats, null, monthlyTrend);
 }
 
 // ── Render new publisher (from similar) ──────────────────────────────────────
@@ -297,25 +361,33 @@ async function renderNewPub(targetPV) {
     <span class="pub-row-meta">${similar.length} ناشر مشابه · ${fmt(targetPV)} pageview/روز</span>`;
 
   if (!similar.length) {
+    setupResults(`ناشر جدید — ${fmt(targetPV)} pageview`, null);
+    showPage('results');
     $('results-body').innerHTML = `<p style="color:#aaa;padding:40px 0;text-align:center;font-size:0.9rem;">ناشر مشابهی یافت نشد.</p>`;
     return;
   }
 
-  // Pool rows by position type
+  // Pool all positions from similar publishers for aggregate monthly trend
+  const pooledPositions = {};
   const byType = {};
-  for (const { pub } of similar)
-    for (const pos of Object.values(pub.positions)) {
+  for (const { pub } of similar) {
+    for (const [posId, pos] of Object.entries(pub.positions)) {
+      pooledPositions[posId] = pos;
       const t = pos.type || 'unknown';
       if (!byType[t]) byType[t] = [];
       byType[t].push(...pos.rows);
     }
+  }
 
+  const monthlyTrend = computeMonthlyTrend(pooledPositions);
   const stats = Object.entries(byType)
     .map(([type, rows]) => computeStats('—', type, type, rows))
     .filter(Boolean);
 
   const extra = `ناشر جدید — در داده‌ها یافت نشد\nبازدید روزانه: ${fmt(targetPV)} پیج‌ویو\nتحلیل بر اساس ${similar.length} ناشر مشابه (از نظر حجم ترافیک):`;
-  await runAnalysis('ناشر جدید', '—', stats, extra);
+  setupResults(`ناشر جدید — ${fmt(targetPV)} pageview`, monthlyTrend);
+  showPage('results');
+  await runAnalysis('ناشر جدید', '—', stats, extra, monthlyTrend);
 }
 
 // ── Format ────────────────────────────────────────────────────────────────────
@@ -344,7 +416,7 @@ function renderSuggestions(items) {
   const box = $('suggestions');
   if (!items.length) { box.style.display = 'none'; return; }
   box.innerHTML = items.map((it, i) =>
-    `<div class="sug-item" data-appid="${it.appId}" data-idx="${i}">
+    `<div class="sug-item" data-appid="${it.appId}" data-name="${it.name}" data-idx="${i}">
        <span class="sug-name">${it.name}</span>
        <span class="sug-id">${it.appId}</span>
      </div>`
@@ -363,7 +435,7 @@ function highlightSuggestion(idx) {
   items.forEach((el, i) => el.classList.toggle('sug-active', i === idx));
 }
 
-// Load data in background so autocomplete is ready
+// Load data in background so autocomplete is ready immediately
 window.addEventListener('load', () => {
   loadData().catch(() => {});
 });
@@ -372,7 +444,7 @@ $('suggestions').addEventListener('mousedown', e => {
   const item = e.target.closest('.sug-item');
   if (!item) return;
   e.preventDefault();
-  $('pub-input').value = item.dataset.appid;
+  $('pub-input').value = item.dataset.name || item.dataset.appid;
   closeSuggestions();
   handleSearch();
 });
@@ -390,7 +462,8 @@ $('pub-input').addEventListener('keydown', e => {
     if (e.key === 'ArrowUp')    { e.preventDefault(); acIndex = Math.max(acIndex-1, -1); highlightSuggestion(acIndex); return; }
     if (e.key === 'Enter' && acIndex >= 0) {
       e.preventDefault();
-      $('pub-input').value = items[acIndex].dataset.appid;
+      const active = items[acIndex];
+      $('pub-input').value = active.dataset.name || active.dataset.appid;
       closeSuggestions();
       handleSearch();
       return;
@@ -427,8 +500,6 @@ async function handleSearch() {
   foundPub = searchPublisher(q);
 
   if (foundPub) {
-    setupResults(foundPub.publisher_name || q);
-    showPage('results');
     await renderExisting(foundPub);
   } else {
     $('query-echo').textContent = q;
@@ -444,8 +515,6 @@ $('pv-btn').addEventListener('click', async () => {
     $('pv-err').style.display = '';
     return;
   }
-  setupResults(`ناشر جدید — ${fmt(pv)} pageview`);
-  showPage('results');
   await renderNewPub(pv);
 });
 
