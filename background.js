@@ -222,6 +222,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
+  if (msg.type === 'OPEN_PRICING_AGENT') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('pricing-agent.html') });
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (msg.type === 'CAPTURE_TAB') {
     chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 82 }, dataUrl => {
       if (chrome.runtime.lastError) { sendResponse(null); return; }

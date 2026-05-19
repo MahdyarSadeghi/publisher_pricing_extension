@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ناشر من</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+      background: #fff;
+      color: #1a1a2e;
+      direction: rtl;
+      min-height: 100vh;
+    }
+
+    /* ── Search Page ── */
+    #page-search {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 0 24px 80px;
+    }
+
+    .home-logo {
+      width: 88px; height: 88px;
+      border-radius: 20px;
+      object-fit: cover;
+      margin-bottom: 18px;
+    }
+
+    .home-title {
+      font-size: 3rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+    }
+
+    .home-search-wrap {
+      width: 100%;
+      max-width: 540px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .search-pill {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      border: 1px solid #dfe1e5;
+      border-radius: 28px;
+      padding: 0 20px;
+      height: 54px;
+      box-shadow: none;
+      transition: box-shadow 0.2s, border-color 0.2s;
+      background: #fff;
+      gap: 12px;
+    }
+    .search-pill:focus-within {
+      box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+      border-color: transparent;
+    }
+    .search-pill svg { flex-shrink: 0; color: #9aa0a6; }
+    .search-pill input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      font-size: 1rem;
+      color: #1a1a2e;
+      direction: rtl;
+      background: transparent;
+    }
+    .search-pill input::placeholder { color: #c0c0c0; }
+
+    .search-go-btn {
+      background: #f8f9fa;
+      border: 1px solid #f8f9fa;
+      border-radius: 6px;
+      padding: 11px 24px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: #3c4043;
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .search-go-btn:hover {
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      border-color: #dadce0;
+    }
+
+    .home-err { font-size: 0.84rem; color: #d93025; margin-top: 4px; }
+
+    /* ── Autocomplete dropdown ── */
+    .search-wrap-pos { position: relative; width: 100%; max-width: 540px; }
+
+    .suggestions {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0; left: 0;
+      background: #fff;
+      border: 1px solid #dfe1e5;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+      overflow: hidden;
+      z-index: 100;
+    }
+    .sug-item {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 10px 18px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .sug-item:hover, .sug-item.sug-active { background: #f8f9fa; }
+    .sug-item:not(:last-child) { border-bottom: 1px solid #f4f4f4; }
+    .sug-name { font-size: 0.92rem; font-weight: 500; color: #1a1a2e; flex: 1; }
+    .sug-id   { font-size: 0.72rem; color: #bbb; font-family: monospace; white-space: nowrap; }
+
+    /* ── PV Page ── */
+    #page-pv {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 0 24px 80px;
+      text-align: center;
+    }
+    .pv-logo { width: 50px; height: 50px; border-radius: 12px; object-fit: cover; margin-bottom: 16px; }
+    .pv-title { font-size: 1.05rem; color: #333; margin-bottom: 6px; }
+    .pv-title strong { color: #1a1a2e; }
+    .pv-sub { font-size: 0.88rem; color: #999; margin-bottom: 24px; }
+    .pv-row { display: flex; gap: 10px; align-items: center; justify-content: center; }
+    .pv-row input {
+      padding: 12px 18px;
+      border: 1.5px solid #dfe1e5;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      width: 200px;
+      direction: ltr;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .pv-row input:focus { border-color: #1a1a2e; }
+    .pv-go {
+      padding: 12px 24px;
+      background: #1a1a2e;
+      color: #FDD015;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .pv-go:hover { opacity: 0.85; }
+    .pv-back {
+      margin-top: 16px;
+      background: none; border: none;
+      color: #aaa; font-family: inherit; font-size: 0.84rem;
+      cursor: pointer; text-decoration: underline;
+    }
+    .pv-err { font-size: 0.83rem; color: #d93025; margin-top: 10px; }
+
+    /* ── Loading ── */
+    #page-loading {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 16px;
+    }
+    .dots { display: flex; gap: 8px; }
+    .dot {
+      width: 10px; height: 10px;
+      background: #FDD015;
+      border-radius: 50%;
+      animation: bounce 1.1s ease-in-out infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.18s; }
+    .dot:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes bounce { 0%,80%,100%{transform:scale(0.65);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+    #loading-msg { font-size: 0.88rem; color: #aaa; }
+
+    /* ── Results Page ── */
+    #page-results { display: none; }
+
+    .results-bar {
+      border-bottom: 1px solid #ebebeb;
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky; top: 0;
+      background: #fff;
+      z-index: 10;
+    }
+    .bar-logo { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; }
+    .bar-brand { font-size: 0.95rem; font-weight: 700; white-space: nowrap; }
+    .bar-query-pill {
+      flex: 1; max-width: 460px;
+      display: flex; align-items: center;
+      border: 1px solid #dfe1e5;
+      border-radius: 22px;
+      padding: 0 14px; height: 40px; gap: 8px;
+    }
+    .bar-query-pill svg { color: #9aa0a6; flex-shrink: 0; }
+    .bar-query-pill span {
+      font-size: 0.88rem; color: #3c4043;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bar-reset {
+      background: none; border: 1px solid #dadce0;
+      border-radius: 6px; padding: 7px 16px;
+      font-family: inherit; font-size: 0.8rem;
+      color: #3c4043; cursor: pointer; white-space: nowrap;
+    }
+    .bar-reset:hover { background: #f8f9fa; }
+
+    .results-wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 32px 28px 100px;
+    }
+
+    .pub-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .pub-row-name { font-size: 1.1rem; font-weight: 700; }
+    .pub-row-id   { font-size: 0.75rem; color: #bbb; font-family: monospace; }
+    .pub-row-meta { font-size: 0.8rem; color: #bbb; margin-right: auto; }
+
+    /* ── LLM stream output ── */
+    .stream-output {
+      font-size: 0.96rem;
+      line-height: 2.0;
+      color: #2d2d2d;
+    }
+
+    .stream-output .md-h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin: 0 0 14px;
+      padding-bottom: 10px;
+      border-bottom: 2.5px solid #FDD015;
+      display: inline-block;
+    }
+
+    .stream-output .md-h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin: 28px 0 6px;
+    }
+
+    .stream-output .md-hr {
+      border: none;
+      border-top: 1px solid #f0f0f0;
+      margin: 22px 0;
+    }
+
+    .stream-output strong {
+      color: #1a1a2e;
+      font-weight: 700;
+    }
+
+    .stream-output .md-bullet {
+      padding: 1px 0;
+      color: #444;
+    }
+
+    .stream-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1.05em;
+      background: #FDD015;
+      vertical-align: text-bottom;
+      margin-right: 2px;
+      animation: cur-blink 0.55s step-end infinite;
+    }
+    @keyframes cur-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .api-err {
+      margin-top: 8px;
+      font-size: 0.84rem;
+      color: #d93025;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    /* ── Markdown tables ── */
+    .md-table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0 22px;
+      font-size: 0.92rem;
+    }
+    .md-table th,
+    .md-table td {
+      border: 1px solid #e8e8e8;
+      padding: 8px 16px;
+      text-align: right;
+    }
+    .md-table th {
+      background: #f5f5f5;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+    .md-table tr:nth-child(even) td { background: #fafafa; }
+
+    .section-block { margin-bottom: 32px; }
+  </style>
+</head>
+<body>
+
+  <!-- Search -->
+  <div id="page-search">
+    <img src="icons/icon128.png" class="home-logo" alt="ناشر من">
+    <h1 class="home-title">ناشر من</h1>
+    <div class="home-search-wrap">
+      <div class="search-wrap-pos">
+        <div class="search-pill">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" id="pub-input" placeholder="نام ناشر یا App ID" autocomplete="off">
+        </div>
+        <div id="suggestions" class="suggestions"></div>
+      </div>
+      <button class="search-go-btn" id="search-btn">جستجو</button>
+      <div id="home-err" class="home-err" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- PV input -->
+  <div id="page-pv">
+    <img src="icons/icon128.png" class="pv-logo" alt="">
+    <p class="pv-title">ناشر «<strong id="query-echo"></strong>» در داده‌ها یافت نشد.</p>
+    <p class="pv-sub">بازدید روزانه صفحات را وارد کنید تا ناشر مشابه پیدا کنیم</p>
+    <div class="pv-row">
+      <input type="number" id="pv-input" placeholder="مثلاً 50000" min="1">
+      <button class="pv-go" id="pv-btn">تحلیل کن</button>
+    </div>
+    <p id="pv-err" class="pv-err" style="display:none;"></p>
+    <button class="pv-back" id="pv-back">← بازگشت</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="page-loading">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <p id="loading-msg">در حال بارگذاری...</p>
+  </div>
+
+  <!-- Results -->
+  <div id="page-results">
+    <div class="results-bar">
+      <img src="icons/icon128.png" class="bar-logo" alt="">
+      <span class="bar-brand">ناشر من</span>
+      <div class="bar-query-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <span id="bar-query"></span>
+      </div>
+      <button class="bar-reset" id="new-search-btn">جستجوی جدید</button>
+    </div>
+    <div class="results-wrap">
+      <div class="pub-row" id="pub-row"></div>
+      <div id="results-body"></div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="pricing-agent.js"></script>
+</body>
+</html>
