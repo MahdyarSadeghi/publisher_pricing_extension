@@ -1,8 +1,9 @@
 'use strict';
 
-// API key and model loaded from config.js (gitignored)
-const OPENROUTER_KEY = (typeof CONFIG !== 'undefined') ? CONFIG.OPENROUTER_KEY : '';
-const LLM_MODEL     = (typeof CONFIG !== 'undefined') ? CONFIG.LLM_MODEL : 'openai/gpt-4o-mini';
+// API key loaded from config.js (gitignored — copy config.example.js to create it)
+const OPENROUTER_KEY = (typeof CONFIG !== 'undefined' && CONFIG.OPENROUTER_KEY !== 'YOUR_OPENROUTER_KEY_HERE')
+  ? CONFIG.OPENROUTER_KEY : '';
+const LLM_MODEL = (typeof CONFIG !== 'undefined') ? CONFIG.LLM_MODEL : 'openai/gpt-4o-mini';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let allData     = null;
@@ -135,6 +136,9 @@ function buildContext(stats) {
 
 // ── OpenRouter streaming call ─────────────────────────────────────────────────
 async function* streamLLM(system, user) {
+  if (!OPENROUTER_KEY) {
+    throw new Error('فایل config.js یافت نشد یا API key تنظیم نشده — فایل config.example.js را کپی کنید به config.js و key را وارد کنید');
+  }
   const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
