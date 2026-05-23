@@ -25,8 +25,12 @@ var filterFromISO=null,filterToISO=null;
 var chartMode='monthly';
 var selectedPosIds=null;
 var chartDataStore={};
-var allPubData=null;   // all publishers from publisher_data.json
-var cmpPubs=[];        // [{ appId, name, positions }] for comparison tab
+var allPubData=null;
+var cmpPubs=[];        // [{pubId, name, positions}]
+var cmpFromISO=null;   // initialized in render()
+var cmpToISO=null;
+var cmpMode='group';   // 'group' | 'desc'
+var cmpDescFilter='';
 
 // ── Data helpers ───────────────────────────────────────────────
 function getFullRows(posId){
@@ -133,14 +137,16 @@ function classifyPos(posType,desc){
   return{key:'banner_top',name:'بنر بالا'};
 }
 
-function computeGroupStats(positions){
+function computeGroupStats(positions,fromISO,toISO){
+  var from=fromISO||jToISO(1404,1,1);
+  var to=toISO||'9999-12-31';
   var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   var groups={};
   Object.keys(positions).forEach(function(posId){
     var pos=positions[posId];
     var g=classifyPos(pos.type||pos.positionType,pos.desc||pos.description);
     if(!groups[g.key])groups[g.key]={name:g.name,rows:[],cnt:0};
-    var filtered=(pos.rows||[]).filter(function(r){var p=r[0].split('-').map(Number);return gToJ(p[0],p[1],p[2]).y>=1404;});
+    var filtered=(pos.rows||[]).filter(function(r){return r[0]>=from&&r[0]<=to;});
     groups[g.key].rows=groups[g.key].rows.concat(filtered);
     groups[g.key].cnt++;
   });
@@ -150,20 +156,21 @@ function computeGroupStats(positions){
     if(!g.rows.length)return;
     var by={};
     g.rows.forEach(function(r){if(!by[r[0]])by[r[0]]={c:0,p:0};by[r[0]].c+=r[1];by[r[0]].p=Math.max(by[r[0]].p,r[2]);});
-    var daily=Object.keys(by).sort().filter(function(d){return by[d].p>0;}).map(function(d){return by[d].c/by[d].p;});
+    var daily=Object.keys(by).sort().filter(function(d){return by[d].p>0;}).map(function(d){return{date:d,rpm:by[d].c/by[d].p};});
     if(daily.length<3)return;
-    var sorted=[].concat(daily).sort(function(a,b){return a-b;});
-    var n=sorted.length;
-    var p50=sorted[Math.floor(n*0.5)];
+    // monthly series for sparkline
+    var mByKey={};
+    daily.forEach(function(d){var j=isoToJ(d.date);var k=j.y+'/'+p2(j.m);if(!mByKey[k])mByKey[k]={sum:0,cnt:0};mByKey[k].sum+=d.rpm;mByKey[k].cnt++;});
+    var monthly=Object.keys(mByKey).sort().map(function(k){return{key:k,rpm:mByKey[k].sum/mByKey[k].cnt};});
+    var rpms=daily.map(function(d){return d.rpm;}).sort(function(a,b){return a-b;});
+    var n=rpms.length,p50=rpms[Math.floor(n*.5)];
     var recent=daily.slice(-30);
-    var avg=recent.reduce(function(s,v){return s+v;},0)/recent.length;
+    var avg=recent.reduce(function(s,v){return s+v.rpm;},0)/recent.length;
     var tw=daily.slice(-60),nt=tw.length,sx=0,sy=0,sxy=0,sxx=0;
-    tw.forEach(function(v,i){sx+=i;sy+=v;sxy+=i*v;sxx+=i*i;});
-    var td2=nt*sxx-sx*sx;
-    var slope=td2?(nt*sxy-sx*sy)/td2:0;
-    var tavg=sy/nt;
+    tw.forEach(function(v,i){sx+=i;sy+=v.rpm;sxy+=i*v.rpm;sxx+=i*i;});
+    var td2=nt*sxx-sx*sx,slope=td2?(nt*sxy-sx*sy)/td2:0,tavg=sy/nt;
     var trend=tavg>0?Math.round(slope*30/tavg*10)/10:0;
-    result.push({key:key,name:g.name,cnt:g.cnt,p50:p50,avg:avg,trend:trend,days:daily.length});
+    result.push({key:key,name:g.name,cnt:g.cnt,p50:p50,avg:avg,trend:trend,days:daily.length,monthly:monthly});
   });
   result.sort(function(a,b){
     var ai=ORDER.findIndex(function(o){return a.key.indexOf(o)===0;});
@@ -174,19 +181,70 @@ function computeGroupStats(positions){
   return result;
 }
 
+function computePosStatsByDesc(positions,fromISO,toISO,descFilter){
+  var from=fromISO||jToISO(1404,1,1);
+  var to=toISO||'9999-12-31';
+  var dl=(descFilter||'').toLowerCase();
+  var byDesc={};
+  Object.values(positions).forEach(function(pos){
+    var desc=pos.desc||pos.description||'';
+    if(dl&&desc.toLowerCase().indexOf(dl)<0)return;
+    var rows=(pos.rows||[]).filter(function(r){return r[0]>=from&&r[0]<=to;});
+    if(!rows.length)return;
+    var g=classifyPos(pos.type||pos.positionType,desc);
+    if(!byDesc[desc])byDesc[desc]={desc:desc,groupName:g.name,rows:[]};
+    byDesc[desc].rows=byDesc[desc].rows.concat(rows);
+  });
+  return Object.values(byDesc).map(function(item){
+    var by={};
+    item.rows.forEach(function(r){if(!by[r[0]])by[r[0]]={c:0,p:0};by[r[0]].c+=r[1];by[r[0]].p=Math.max(by[r[0]].p,r[2]);});
+    var daily=Object.keys(by).sort().filter(function(d){return by[d].p>0;}).map(function(d){return{date:d,rpm:by[d].c/by[d].p};});
+    if(!daily.length)return null;
+    var rpms=daily.map(function(d){return d.rpm;}).sort(function(a,b){return a-b;});
+    var n=rpms.length,p50=rpms[Math.floor(n*.5)];
+    var recent=daily.slice(-30);
+    var avg=recent.reduce(function(s,v){return s+v.rpm;},0)/recent.length;
+    var mByKey={};
+    daily.forEach(function(d){var j=isoToJ(d.date);var k=j.y+'/'+p2(j.m);if(!mByKey[k])mByKey[k]={sum:0,cnt:0};mByKey[k].sum+=d.rpm;mByKey[k].cnt++;});
+    var monthly=Object.keys(mByKey).sort().map(function(k){return{key:k,rpm:mByKey[k].sum/mByKey[k].cnt};});
+    var tw=daily.slice(-60),nt=tw.length,sx=0,sy=0,sxy=0,sxx=0;
+    tw.forEach(function(v,i){sx+=i;sy+=v.rpm;sxy+=i*v.rpm;sxx+=i*i;});
+    var td2=nt*sxx-sx*sx,slope=td2?(nt*sxy-sx*sy)/td2:0,tavg=sy/nt;
+    var trend=tavg>0?Math.round(slope*30/tavg*10)/10:0;
+    return{desc:item.desc,groupName:item.groupName,p50:p50,avg:avg,trend:trend,monthly:monthly};
+  }).filter(Boolean).sort(function(a,b){return a.desc.localeCompare(b.desc,'fa');});
+}
+
+function miniSparkline(monthly,W,H){
+  if(!monthly||monthly.length<2)return'<span style="color:var(--muted);font-size:10px">—</span>';
+  var vals=monthly.map(function(m){return m.rpm;});
+  var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=mx-mn||0.001;
+  var n=vals.length,pad=2;
+  var pts=vals.map(function(v,i){
+    var x=pad+(n===1?W/2:(i/(n-1))*(W-2*pad));
+    var y=pad+(1-(v-mn)/rng)*(H-2*pad);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  var last=vals[vals.length-1],first=vals[0];
+  var col=last>first*1.05?'#22c55e':last<first*0.95?'#ef4444':'#FED049';
+  return'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block">'+
+    '<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'+
+    '</svg>';
+}
+
 function buildGroupTable(groups){
   if(!groups.length)return'<div class="chart-empty">داده‌ای موجود نیست</div>';
   var rows=groups.map(function(g){
-    var ts=g.trend>2?'+'+g.trend+'٪ ↑':g.trend<-2?g.trend+'٪ ↓':'ثابت';
-    var tc=g.trend>2?' class="trend-up"':g.trend<-2?' class="trend-dn"':'';
-    return'<tr><td class="grp-td">'+esc(g.name)+'</td>'+
-      '<td style="text-align:center">'+toFa(g.cnt)+'</td>'+
+    return'<tr>'+
+      '<td class="grp-td">'+esc(g.name)+'</td>'+
+      '<td class="val-td-c">'+toFa(g.cnt)+'</td>'+
       '<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td>'+
       '<td class="val-td">'+fmtRpm(g.avg)+'</td>'+
-      '<td'+tc+'>'+toFa(ts)+'</td></tr>';
+      '<td class="spark-td">'+miniSparkline(g.monthly,88,28)+'</td>'+
+    '</tr>';
   }).join('');
   return'<table class="grp-tbl"><thead><tr>'+
-    '<th>گروه</th><th>تعداد جایگاه</th><th>RPM میانه</th><th>RPM میانگین (۳۰ روز)</th><th>ترند</th>'+
+    '<th>گروه</th><th>تعداد</th><th>p50 RPM</th><th>میانگین</th><th>ترند</th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table>';
 }
 
@@ -199,22 +257,88 @@ function buildCmpTable(pubsData){
     var bi=ORDER.findIndex(function(o){return b.indexOf(o)===0;});
     ai=ai===-1?99:ai;bi=bi===-1?99:bi;return ai-bi||a.localeCompare(b);
   });
-  var headCells=pubsData.map(function(p){
-    return'<th colspan="2" class="pub-col-hdr">'+esc(p.name)+'<span class="pub-col-id">'+esc(p.appId)+'</span></th>';
+  var np=pubsData.length;
+  var pubSubHdrs=pubsData.map(function(p){
+    return'<th class="pub-sub-hdr">'+esc(p.name.split(' ')[0])+'<br><span class="pub-col-id">'+esc(p.pubId)+'</span></th>';
   }).join('');
-  var subHead=pubsData.map(function(){return'<th>p50 RPM</th><th>avg RPM</th>';}).join('');
+  var hdr1='<th rowspan="2" class="grp-td-hdr">گروه جایگاه</th>'+
+    '<th colspan="'+np+'" class="metric-hdr">میانگین RPM</th>'+
+    '<th colspan="'+np+'" class="metric-hdr">p50 RPM</th>'+
+    '<th colspan="'+np+'" class="metric-hdr">ترند</th>';
   var rows=keys.map(function(k){
-    var cells=pubsData.map(function(pub){
+    var avgCells=pubsData.map(function(pub){
       var g=pub.groups.find(function(x){return x.key===k;});
-      if(!g)return'<td class="na-td">—</td><td class="na-td">—</td>';
-      return'<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td><td class="val-td">'+fmtRpm(g.avg)+'</td>';
+      return g?'<td class="val-td">'+fmtRpm(g.avg)+'</td>':'<td class="na-td">—</td>';
     }).join('');
-    return'<tr><td class="grp-td">'+esc(keyMap[k])+'</td>'+cells+'</tr>';
+    var p50Cells=pubsData.map(function(pub){
+      var g=pub.groups.find(function(x){return x.key===k;});
+      return g?'<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td>':'<td class="na-td">—</td>';
+    }).join('');
+    var trendCells=pubsData.map(function(pub){
+      var g=pub.groups.find(function(x){return x.key===k;});
+      return g?'<td class="spark-td">'+miniSparkline(g.monthly,88,28)+'</td>':'<td class="na-td">—</td>';
+    }).join('');
+    return'<tr><td class="grp-td">'+esc(keyMap[k])+'</td>'+avgCells+p50Cells+trendCells+'</tr>';
   }).join('');
-  return'<table class="cmp-tbl"><thead>'+
-    '<tr><th>گروه جایگاه</th>'+headCells+'</tr>'+
-    '<tr><th></th>'+subHead+'</tr>'+
-    '</thead><tbody>'+rows+'</tbody></table>';
+  return'<div style="overflow-x:auto"><table class="cmp-tbl">'+
+    '<thead><tr>'+hdr1+'</tr><tr>'+pubSubHdrs+pubSubHdrs+pubSubHdrs+'</tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
+}
+
+function buildDescTable(pubsData){
+  var fromISO=cmpFromISO,toISO=cmpToISO,df=cmpDescFilter;
+  if(pubsData.length===1){
+    var stats=computePosStatsByDesc(pubsData[0].positions,fromISO,toISO,df);
+    if(!stats.length)return'<div class="chart-empty">جایگاهی یافت نشد'+(df?' با این فیلتر':'')+'</div>';
+    var rows=stats.map(function(s){
+      return'<tr>'+
+        '<td class="grp-sub-td">'+esc(s.groupName)+'</td>'+
+        '<td class="pos-desc-td">'+esc(s.desc)+'</td>'+
+        '<td class="val-td"><strong>'+fmtRpm(s.p50)+'</strong></td>'+
+        '<td class="val-td">'+fmtRpm(s.avg)+'</td>'+
+        '<td class="spark-td">'+miniSparkline(s.monthly,88,28)+'</td>'+
+      '</tr>';
+    }).join('');
+    return'<table class="cmp-tbl"><thead><tr>'+
+      '<th>گروه</th><th>نام جایگاه</th><th>p50 RPM</th><th>میانگین</th><th>ترند</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+  // multi-publisher: collect all unique descs
+  var allDescMap={};
+  pubsData.forEach(function(pub){
+    computePosStatsByDesc(pub.positions,fromISO,toISO,df).forEach(function(s){
+      if(!allDescMap[s.desc])allDescMap[s.desc]={desc:s.desc,groupName:s.groupName,pubStats:{}};
+      allDescMap[s.desc].pubStats[pub.pubId]={p50:s.p50,avg:s.avg,monthly:s.monthly};
+    });
+  });
+  var descs=Object.values(allDescMap).sort(function(a,b){return a.desc.localeCompare(b.desc,'fa');});
+  if(!descs.length)return'<div class="chart-empty">جایگاهی یافت نشد'+(df?' با این فیلتر':'')+'</div>';
+  var np=pubsData.length;
+  var pubSubHdrs=pubsData.map(function(p){
+    return'<th class="pub-sub-hdr">'+esc(p.name.split(' ')[0])+'<br><span class="pub-col-id">'+esc(p.pubId)+'</span></th>';
+  }).join('');
+  var hdr1='<th rowspan="2" class="grp-td-hdr">گروه</th>'+
+    '<th rowspan="2" class="grp-td-hdr" style="min-width:160px">نام جایگاه</th>'+
+    '<th colspan="'+np+'" class="metric-hdr">p50 RPM</th>'+
+    '<th colspan="'+np+'" class="metric-hdr">ترند</th>';
+  var rows=descs.map(function(item){
+    var p50Cells=pubsData.map(function(pub){
+      var s=item.pubStats[pub.pubId];
+      return s?'<td class="val-td"><strong>'+fmtRpm(s.p50)+'</strong></td>':'<td class="na-td">—</td>';
+    }).join('');
+    var trendCells=pubsData.map(function(pub){
+      var s=item.pubStats[pub.pubId];
+      return s?'<td class="spark-td">'+miniSparkline(s.monthly,88,28)+'</td>':'<td class="na-td">—</td>';
+    }).join('');
+    return'<tr>'+
+      '<td class="grp-sub-td">'+esc(item.groupName)+'</td>'+
+      '<td class="pos-desc-td">'+esc(item.desc)+'</td>'+
+      p50Cells+trendCells+
+    '</tr>';
+  }).join('');
+  return'<div style="overflow-x:auto"><table class="cmp-tbl">'+
+    '<thead><tr>'+hdr1+'</tr><tr>'+pubSubHdrs+pubSubHdrs+'</tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
 }
 
 // ── SVG charts (rebuilt from scratch) ─────────────────────────
@@ -523,16 +647,41 @@ function render(d){
   html+='</div>';  // close .main
   html+='</div>';  // close #tab-report
   // Comparison tab
-  html+='<div id="tab-compare" style="display:none"><div class="cmp-panel">'+
-    '<p class="sec-lbl">مقایسه جایگاه‌ها</p>'+
+  if(!cmpFromISO)cmpFromISO=jToISO(1404,1,1);
+  if(!cmpToISO&&dataMaxISO)cmpToISO=dataMaxISO;
+  var cfJ=cmpFromISO?isoToJ(cmpFromISO):{y:1404,m:1,d:1};
+  var ctJ=cmpToISO?isoToJ(cmpToISO):{y:1405,m:12,d:29};
+  var minYR=dataMinISO?isoToJ(dataMinISO).y:1404;
+  var maxYR=dataMaxISO?isoToJ(dataMaxISO).y:1405;
+  html+='<div id="tab-compare" style="display:none"><div class="cmp-panel">';
+  html+='<p class="sec-lbl">مقایسه جایگاه‌ها</p>';
+  // Publisher row
+  html+='<div class="cmp-pub-row">'+
     '<div class="cmp-pub-chips" id="cmp-chips"></div>'+
-    '<div class="cmp-search-row">'+
-      '<input class="cmp-inp" id="cmp-inp" type="text" placeholder="افزودن ناشر برای مقایسه..." autocomplete="off">'+
+    '<div style="position:relative">'+
+      '<input class="cmp-inp" id="cmp-inp" type="text" placeholder="افزودن ناشر (نام یا publisher_id)..." autocomplete="off">'+
       '<div class="cmp-dd" id="cmp-dd"></div>'+
-      '<span class="cmp-hint" id="cmp-hint">یک ناشر دیگر اضافه کنید تا مقایسه شروع شود</span>'+
     '</div>'+
-    '<div id="cmp-table-wrap"></div>'+
-  '</div></div>';
+    '<span class="cmp-hint" id="cmp-hint">یک ناشر دیگر اضافه کنید تا مقایسه شروع شود</span>'+
+  '</div>';
+  // Controls: mode switcher + date filter
+  html+='<div class="cmp-controls">'+
+    '<div class="cmp-mode-sw">'+
+      '<button class="cmp-mode-btn'+(cmpMode==='group'?' active':'')+'" id="cmp-btn-group">گروه‌بندی</button>'+
+      '<button class="cmp-mode-btn'+(cmpMode==='desc'?' active':'')+'" id="cmp-btn-desc">جایگاه‌ها</button>'+
+    '</div>'+
+    '<div class="cmp-date-row">'+
+      '<label class="filter-lbl">از</label>'+buildDateSelects('cf',cfJ.y,cfJ.m,cfJ.d,minYR,maxYR+1)+
+      '<label class="filter-lbl">تا</label>'+buildDateSelects('ct',ctJ.y,ctJ.m,ctJ.d,minYR,maxYR+1)+
+      '<button class="filter-btn" id="cmp-date-apply">اعمال</button>'+
+    '</div>'+
+  '</div>';
+  // Desc filter bar (mode 2)
+  html+='<div class="cmp-desc-bar" id="cmp-desc-bar" style="display:'+(cmpMode==='desc'?'flex':'none')+'">'+
+    '<input class="cmp-desc-inp" id="cmp-desc-inp" type="text" placeholder="فیلتر نام جایگاه..." value="'+esc(cmpDescFilter)+'">'+
+  '</div>';
+  html+='<div id="cmp-table-wrap"></div>';
+  html+='</div></div>';
   root.innerHTML=html;
   wireFilterBar();
   initTooltips();
@@ -554,9 +703,8 @@ function wireTabBar(){
   tbC.addEventListener('click',function(){
     tbC.classList.add('active');tbR.classList.remove('active');
     tC.style.display='';tR.style.display='none';
-    // init comparison with current publisher on first open
     if(!cmpPubs.length&&pubData&&reportData){
-      cmpPubs=[{appId:reportData.appId,name:reportData.publisherName||reportData.appId,positions:pubData.positions}];
+      cmpPubs=[{pubId:reportData.appId,name:reportData.publisherName||reportData.appId,positions:pubData.positions}];
       refreshCmpTab();
     }
   });
@@ -567,14 +715,15 @@ function wireCmpTab(){
   var inp=document.getElementById('cmp-inp');
   var dd=document.getElementById('cmp-dd');
   if(!inp||!dd)return;
+  // Publisher search
   function getSugs(q){
     if(!allPubData||!q||q.length<2)return[];
     var ql=q.toLowerCase();var res=[];
-    Object.keys(allPubData).forEach(function(appId){
-      if(cmpPubs.find(function(p){return p.appId===appId;}))return;
-      var pub=allPubData[appId];
-      if((pub.publisher_name||'').toLowerCase().indexOf(ql)>=0||appId.toLowerCase().indexOf(ql)>=0)
-        res.push({appId:appId,name:pub.publisher_name||appId});
+    Object.keys(allPubData).forEach(function(pubId){
+      if(cmpPubs.find(function(p){return p.pubId===pubId;}))return;
+      var pub=allPubData[pubId];
+      if((pub.publisher_name||'').toLowerCase().indexOf(ql)>=0||pubId.toLowerCase().indexOf(ql)>=0)
+        res.push({pubId:pubId,name:pub.publisher_name||pubId});
     });
     return res.slice(0,8);
   }
@@ -582,18 +731,18 @@ function wireCmpTab(){
     var items=getSugs(q);
     if(!items.length){dd.style.display='none';return;}
     dd.innerHTML=items.map(function(it){
-      return'<div class="cmp-dd-item" data-appid="'+it.appId+'" data-name="'+esc(it.name)+'">'+
+      return'<div class="cmp-dd-item" data-pubid="'+it.pubId+'" data-name="'+esc(it.name)+'">'+
         '<span class="cmp-dd-name">'+esc(it.name)+'</span>'+
-        '<span class="cmp-dd-id">'+it.appId+'</span></div>';
+        '<span class="cmp-dd-id">'+it.pubId+'</span></div>';
     }).join('');
     dd.querySelectorAll('.cmp-dd-item').forEach(function(item){
       item.addEventListener('mousedown',function(e){
         e.preventDefault();
-        var appId=item.getAttribute('data-appid');
+        var pubId=item.getAttribute('data-pubid');
         var name=item.getAttribute('data-name');
-        var pub=allPubData[appId];
-        if(pub&&cmpPubs.length<4&&!cmpPubs.find(function(p){return p.appId===appId;})){
-          cmpPubs.push({appId:appId,name:name,positions:pub.positions});
+        var pub=allPubData[pubId];
+        if(pub&&cmpPubs.length<4&&!cmpPubs.find(function(p){return p.pubId===pubId;})){
+          cmpPubs.push({pubId:pubId,name:name,positions:pub.positions});
         }
         inp.value='';dd.style.display='none';
         refreshCmpTab();
@@ -604,6 +753,30 @@ function wireCmpTab(){
   inp.addEventListener('input',function(){renderDD(inp.value);});
   inp.addEventListener('focus',function(){if(inp.value)renderDD(inp.value);});
   inp.addEventListener('blur',function(){setTimeout(function(){if(dd)dd.style.display='none';},160);});
+  // Mode switcher
+  var btnGrp=document.getElementById('cmp-btn-group');
+  var btnDesc=document.getElementById('cmp-btn-desc');
+  var descBar=document.getElementById('cmp-desc-bar');
+  if(btnGrp)btnGrp.addEventListener('click',function(){
+    cmpMode='group';btnGrp.classList.add('active');btnDesc.classList.remove('active');
+    if(descBar)descBar.style.display='none';
+    refreshCmpTab();
+  });
+  if(btnDesc)btnDesc.addEventListener('click',function(){
+    cmpMode='desc';btnDesc.classList.add('active');btnGrp.classList.remove('active');
+    if(descBar)descBar.style.display='flex';
+    refreshCmpTab();
+  });
+  // Date filter
+  var applyDate=document.getElementById('cmp-date-apply');
+  if(applyDate)applyDate.addEventListener('click',function(){
+    try{cmpFromISO=jToISO(+document.getElementById('cf-y').value,+document.getElementById('cf-m').value,+document.getElementById('cf-d').value);}catch(e){}
+    try{cmpToISO=jToISO(+document.getElementById('ct-y').value,+document.getElementById('ct-m').value,+document.getElementById('ct-d').value);}catch(e){}
+    refreshCmpTab();
+  });
+  // Desc filter
+  var descInp=document.getElementById('cmp-desc-inp');
+  if(descInp)descInp.addEventListener('input',function(){cmpDescFilter=descInp.value;refreshCmpTab();});
 }
 
 function refreshCmpTab(){
@@ -614,13 +787,14 @@ function refreshCmpTab(){
   chipsEl.innerHTML=cmpPubs.map(function(p,i){
     return'<div class="cmp-chip'+(i===0?' own':'')+'">'+
       '<span>'+esc(p.name)+'</span>'+
-      (i>0?'<button class="cmp-chip-x" data-appid="'+p.appId+'">×</button>':'')+
+      '<span class="pub-col-id" style="font-size:10px;margin-right:4px;opacity:.7">'+esc(p.pubId)+'</span>'+
+      (i>0?'<button class="cmp-chip-x" data-pubid="'+p.pubId+'">×</button>':'')+
     '</div>';
   }).join('');
   chipsEl.querySelectorAll('.cmp-chip-x').forEach(function(btn){
     btn.addEventListener('click',function(){
-      var id=btn.getAttribute('data-appid');
-      cmpPubs=cmpPubs.filter(function(p){return p.appId!==id;});
+      var id=btn.getAttribute('data-pubid');
+      cmpPubs=cmpPubs.filter(function(p){return p.pubId!==id;});
       refreshCmpTab();
     });
   });
@@ -628,14 +802,18 @@ function refreshCmpTab(){
     toFa(cmpPubs.length)+' ناشر انتخاب شده — حداکثر ۴ ناشر':
     'یک ناشر دیگر اضافه کنید تا مقایسه شروع شود';
   if(!tableEl)return;
-  if(cmpPubs.length>=2){
-    var pubsData=cmpPubs.map(function(p){return{name:p.name,appId:p.appId,groups:computeGroupStats(p.positions)};});
-    tableEl.innerHTML=buildCmpTable(pubsData);
-  }else if(cmpPubs.length===1){
-    var groups=computeGroupStats(cmpPubs[0].positions);
-    tableEl.innerHTML='<div class="sec-lbl" style="margin:0 0 16px">جایگاه‌های '+esc(cmpPubs[0].name)+' بر اساس دسته‌بندی</div>'+buildGroupTable(groups);
+  if(!cmpPubs.length){tableEl.innerHTML='';return;}
+  if(cmpMode==='group'){
+    if(cmpPubs.length>=2){
+      var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,groups:computeGroupStats(p.positions,cmpFromISO,cmpToISO)};});
+      tableEl.innerHTML=buildCmpTable(pubsData);
+    }else{
+      var groups=computeGroupStats(cmpPubs[0].positions,cmpFromISO,cmpToISO);
+      tableEl.innerHTML='<div class="sec-lbl" style="margin:0 0 16px">'+esc(cmpPubs[0].name)+'</div>'+buildGroupTable(groups);
+    }
   }else{
-    tableEl.innerHTML='';
+    var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,positions:p.positions};});
+    tableEl.innerHTML=buildDescTable(pubsData);
   }
 }
 
