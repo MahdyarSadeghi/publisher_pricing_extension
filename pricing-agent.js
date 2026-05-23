@@ -9,6 +9,7 @@ const LLM_MODEL = (typeof CONFIG !== 'undefined') ? CONFIG.LLM_MODEL : 'openai/g
 let allData     = null;
 let foundPub    = null;
 let searchQuery = '';
+let comparePubs = []; // { appId, name, pub } for comparison mode
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -41,6 +42,175 @@ function searchPublisher(q) {
 // ── Math ──────────────────────────────────────────────────────────────────────
 const mean  = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 const pct50 = arr => { if (!arr.length) return 0; const s = [...arr].sort((a,b)=>a-b); const m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+
+// ── Position Classification ───────────────────────────────────────────────────
+// Returns { key, name } — canonical group for a position based on its description + type.
+function classifyPosition(desc, posType) {
+  // Normalize: unify Farsi ی→ي, ک→ك so regexes only need Arabic variants
+  const d = (desc || '').toLowerCase().replace(/ی/g, 'ي').replace(/ک/g, 'ك');
+  const t = (posType || '').toLowerCase().trim();
+
+  // --- Primary format ---
+  let fmt, fmtFa;
+  if (t === 'notification' || /نوتي[فق]/.test(d))
+    { fmt = 'notification'; fmtFa = 'نوتیفیکیشن'; }
+  else if (t === 'pre_roll' || /pre.?roll|پري.?رول/.test(d))
+    { fmt = 'pre_roll'; fmtFa = 'پری‌رول'; }
+  else if (t === 'slider' || /اسلايدر/.test(d))
+    { fmt = 'slider'; fmtFa = 'اسلایدر'; }
+  else if (t === 'article-display-card')
+    { fmt = 'native_video'; fmtFa = 'همسان ویدیویی'; }
+  else if (t === 'article-display-sticky')
+    { fmt = 'native_sticky'; fmtFa = 'همسان استیکی'; }
+  else if (t === 'article-display')
+    { fmt = 'native_display'; fmtFa = 'همسان تصویری'; }
+  else if (t === 'article-text')
+    { fmt = 'native_text'; fmtFa = 'همسان متنی'; }
+  else if (t === 'banner-sticky' || t === 'footer-sticky')
+    { fmt = 'sticky'; fmtFa = 'استیکی'; }
+  else
+    { fmt = 'banner'; fmtFa = 'بنر'; }
+
+  // --- Location ---
+  const isSidebar  = /سايدبار|ساید.?بار|نوار جانبي|سمت چپ|سمت راست/.test(d);
+  const isHeader   = /هدر|header/.test(d);
+  const isTopArt   = /ابتداي?.?مطلب|بالاي.?مطلب|بالاي.?خبر|زير.?ليد|زير.?عكس/.test(d);
+  const isMidArt   = /ميان.?مطلب|بين.?مطلب|ميان.?متن/.test(d);
+  const isBotArt   = /انتهاي?.?مطلب|انتهاي|پايين.?مطلب|زير.?تمامي|پايين.?ديدگاه|زير.?كامنت|انتهاي.?صفحه/.test(d);
+  const isHomepage = /صفحه.?اصلي|ص.?اصلي/.test(d);
+
+  let loc = '', locFa = '';
+  if (fmt === 'sticky') {
+    if (/پايين|footer|bottom/.test(d)) { loc = 'bot'; locFa = 'پایین'; }
+    else { loc = 'top'; locFa = 'بالا'; }
+  } else if (fmt !== 'notification' && fmt !== 'pre_roll' && fmt !== 'slider') {
+    if (isHeader)        { loc = 'header';  locFa = 'هدر'; }
+    else if (isSidebar)  { loc = 'sidebar'; locFa = 'سایدبار'; }
+    else if (isTopArt)   { loc = 'top';     locFa = 'ابتدای مطلب'; }
+    else if (isMidArt)   { loc = 'mid';     locFa = 'میان مطلب'; }
+    else if (isBotArt)   { loc = 'bot';     locFa = 'انتهای مطلب'; }
+    else if (isHomepage) { loc = 'home';    locFa = 'صفحه اصلی'; }
+  }
+
+  // --- Ordinal (after normalization ی→ي, so only need arabic forms) ---
+  let ord = '';
+  const persWords = [['اول','اولي'],['دوم','دومي'],['سوم','سومي'],['چهارم'],['پنجم'],['ششم'],['هفتم'],['هشتم']];
+  for (let n = 0; n < persWords.length; n++) {
+    if (persWords[n].some(w => d.includes(w))) { ord = String(n + 1); break; }
+  }
+  if (!ord) { const m = d.match(/\b([1-9])\b/); if (m) ord = m[1]; }
+
+  // --- Device ---
+  let dev = '';
+  if (/موبايل|mobile/.test(d)) dev = 'mob';
+  else if (/\bamp\b/.test(d)) dev = 'amp';
+
+  const key  = fmt + (loc ? '_' + loc : '') + (ord ? '_' + ord : '') + (dev ? '_' + dev : '');
+  let   name = fmtFa + (locFa ? ' ' + locFa : '') + (ord ? ' ' + ord : '');
+  if (dev === 'mob') name += ' (موبایل)';
+  else if (dev === 'amp') name += ' (AMP)';
+
+  return { key, name };
+}
+
+// ── Compute canonical group stats for a publisher's positions ─────────────────
+function computeGroupStats(positions) {
+  const groups = {};
+  for (const pos of Object.values(positions)) {
+    const { key, name } = classifyPosition(pos.desc, pos.type);
+    if (!groups[key]) groups[key] = { name, allRows: [], posCount: 0 };
+    // Only data from فروردین ۱۴۰۴ onwards
+    const filtered = pos.rows.filter(([date]) => {
+      const parts = date.split('-').map(Number);
+      return gToJ(parts[0], parts[1], parts[2])[0] >= 1404;
+    });
+    groups[key].allRows.push(...filtered);
+    groups[key].posCount++;
+  }
+
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_video','native_display','native_text','banner'];
+  const result = [];
+  for (const [key, g] of Object.entries(groups)) {
+    if (!g.allRows.length) continue;
+    const daily = toDaily(g.allRows);
+    if (daily.length < 3) continue;
+    const rpms   = daily.map(d => d.rpm);
+    const recent = daily.slice(-30);
+    const avg    = Math.round(mean(recent.map(d => d.rpm)));
+    const p50    = Math.round(pct50(rpms));
+    const s      = linSlope(daily.slice(-60).map((d, i) => [i, d.rpm]));
+    const tAvg   = mean(daily.slice(-60).map(d => d.rpm));
+    const trend  = tAvg > 0 ? Math.round((s * 30 / tAvg) * 10) / 10 : 0;
+    result.push({ key, name: g.name, posCount: g.posCount, p50, avg, trend, days: daily.length });
+  }
+  result.sort((a, b) => {
+    const ai = ORDER.findIndex(o => a.key.startsWith(o));
+    const bi = ORDER.findIndex(o => b.key.startsWith(o));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.key.localeCompare(b.key);
+  });
+  return result;
+}
+
+// ── Render single-publisher canonical group table ─────────────────────────────
+function renderGroupTable(groups) {
+  if (!groups.length) return '';
+  const rows = groups.map(g => {
+    const trendStr = g.trend > 2 ? `+${g.trend}٪ ↑` : g.trend < -2 ? `${g.trend}٪ ↓` : 'ثابت';
+    const trendCls = g.trend > 2 ? 'trend-up' : g.trend < -2 ? 'trend-dn' : '';
+    return `<tr>
+      <td>${g.name}</td>
+      <td style="text-align:center">${g.posCount}</td>
+      <td><strong>${g.p50.toLocaleString()}</strong></td>
+      <td>${g.avg.toLocaleString()}</td>
+      <td class="${trendCls}">${trendStr}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="section-block">
+    <h2 class="md-h2">جایگاه‌ها بر اساس دسته‌بندی</h2>
+    <table class="md-table">
+      <tr><th>گروه</th><th>تعداد</th><th>RPM میانه</th><th>RPM میانگین</th><th>ترند</th></tr>
+      ${rows}
+    </table>
+  </div>`;
+}
+
+// ── Render multi-publisher comparison table ───────────────────────────────────
+function renderCompareTable(pubsData) {
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_video','native_display','native_text','banner'];
+  const keyMap = new Map(); // key → name
+  for (const pub of pubsData) {
+    for (const g of pub.groups) {
+      if (!keyMap.has(g.key)) keyMap.set(g.key, g.name);
+    }
+  }
+  const sortedKeys = [...keyMap.entries()].sort(([ka], [kb]) => {
+    const ai = ORDER.findIndex(o => ka.startsWith(o));
+    const bi = ORDER.findIndex(o => kb.startsWith(o));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || ka.localeCompare(kb);
+  });
+
+  const headCells = pubsData.map(p =>
+    `<th colspan="2" class="pub-col-header">${p.name}<span class="pub-col-id">${p.appId}</span></th>`
+  ).join('');
+  const subHead = pubsData.map(() => '<th>p50 RPM</th><th>avg RPM</th>').join('');
+
+  const bodyRows = sortedKeys.map(([key, name]) => {
+    const cells = pubsData.map(pub => {
+      const g = pub.groups.find(x => x.key === key);
+      if (!g) return '<td class="cmp-na">—</td><td class="cmp-na">—</td>';
+      return `<td><strong>${g.p50.toLocaleString()}</strong></td><td>${g.avg.toLocaleString()}</td>`;
+    }).join('');
+    return `<tr><td class="grp-name">${name}</td>${cells}</tr>`;
+  }).join('');
+
+  return `<div class="section-block">
+    <table class="md-table cmp-table">
+      <tr><th>گروه جایگاه</th>${headCells}</tr>
+      <tr><th></th>${subHead}</tr>
+      ${bodyRows}
+    </table>
+  </div>`;
+}
 
 function linSlope(pairs) {
   const n = pairs.length;
@@ -243,15 +413,10 @@ async function runAnalysis(pubName, appId, stats, extraContext, monthlyTrend) {
 RPM = درآمد به ازای هر ۱۰۰۰ پیج‌ویو (واحد: تومان).
 تاریخ امروز: ${J_MONTHS[jm-1]} ${jy}.
 
-خروجی باید دقیقاً دو بخش داشته باشد، بدون هیچ توضیح اضافه:
+جدول دسته‌بندی جایگاه‌ها قبلاً نمایش داده شده. فقط یک بخش تحلیلی بنویس:
 
 ## تحلیل و پیش‌بینی
-سه تا چهار جمله: روند کلی چند ماه گذشته، فصلیت، و اینکه چه RPMی برای سال پیش رو منطقی است.
-
-## جدول پوزیشن‌ها
-| نام جایگاه | نوع | RPM پیشنهادی (تومان) |
-|---|---|---|
-| ... | ... | ... |
+پنج تا شش جمله: روند کلی چند ماه گذشته، فصلیت، مقایسه گروه‌های جایگاه با یکدیگر، و RPM پیشنهادی برای قراردادهای آینده به تفکیک مهم‌ترین گروه‌ها.
 
 **توصیه تیم فروش:** [یک جمله عملی]
 
@@ -308,8 +473,8 @@ function findSimilar(targetPV, excludeId) {
   return out.sort((a,b) => Math.abs(Math.log(a.r)) - Math.abs(Math.log(b.r))).slice(0, 15);
 }
 
-// ── Setup results page (with static monthly trend table) ─────────────────────
-function setupResults(queryLabel, monthlyTrend) {
+// ── Setup results page ────────────────────────────────────────────────────────
+function setupResults(queryLabel, monthlyTrend, groups, staticHtml) {
   $('bar-query').textContent = queryLabel;
 
   let trendHtml = '';
@@ -317,18 +482,22 @@ function setupResults(queryLabel, monthlyTrend) {
     const rows = monthlyTrend.map(m =>
       `<tr><td>${m.label}</td><td>${m.rpm.toLocaleString()}</td></tr>`
     ).join('');
-    trendHtml = `
-      <div class="section-block">
-        <h2 class="md-h2">ترند ماهانه RPM</h2>
-        <table class="md-table">
-          <tr><th>ماه</th><th>RPM (تومان)</th></tr>
-          ${rows}
-        </table>
-      </div>`;
+    trendHtml = `<div class="section-block">
+      <h2 class="md-h2">ترند ماهانه RPM</h2>
+      <table class="md-table">
+        <tr><th>ماه</th><th>RPM (تومان)</th></tr>
+        ${rows}
+      </table>
+    </div>`;
   }
+
+  const groupHtml  = groups    ? renderGroupTable(groups) : '';
+  const extraHtml  = staticHtml || '';
 
   $('results-body').innerHTML = `
     ${trendHtml}
+    ${groupHtml}
+    ${extraHtml}
     <div id="stream-output" class="stream-output">
       <span style="color:#ccc;font-size:0.88rem;">در حال تحلیل...</span>
     </div>
@@ -343,11 +512,15 @@ async function renderExisting(pub) {
     <span class="pub-row-meta">${Object.keys(pub.positions).length} جایگاه</span>`;
 
   const monthlyTrend = computeMonthlyTrend(pub.positions);
-  const stats = Object.entries(pub.positions)
-    .map(([id, p]) => computeStats(id, p.desc, p.type, p.rows))
-    .filter(Boolean);
+  const groups       = computeGroupStats(pub.positions);
 
-  setupResults(pub.publisher_name || pub.appId, monthlyTrend);
+  // Map groups to stats format for LLM context
+  const stats = groups.map(g => ({
+    id: g.key, desc: g.name, type: g.key,
+    recent_30d: g.avg, trend_pct: g.trend, hist_median: g.p50, days: g.days,
+  }));
+
+  setupResults(pub.publisher_name || pub.appId, monthlyTrend, groups);
   showPage('results');
   await runAnalysis(pub.publisher_name || pub.appId, pub.appId, stats, null, monthlyTrend);
 }
@@ -367,25 +540,23 @@ async function renderNewPub(targetPV) {
     return;
   }
 
-  // Pool all positions from similar publishers for aggregate monthly trend
+  // Pool all positions from similar publishers
   const pooledPositions = {};
-  const byType = {};
   for (const { pub } of similar) {
     for (const [posId, pos] of Object.entries(pub.positions)) {
       pooledPositions[posId] = pos;
-      const t = pos.type || 'unknown';
-      if (!byType[t]) byType[t] = [];
-      byType[t].push(...pos.rows);
     }
   }
 
   const monthlyTrend = computeMonthlyTrend(pooledPositions);
-  const stats = Object.entries(byType)
-    .map(([type, rows]) => computeStats('—', type, type, rows))
-    .filter(Boolean);
+  const groups       = computeGroupStats(pooledPositions);
+  const stats        = groups.map(g => ({
+    id: g.key, desc: g.name, type: g.key,
+    recent_30d: g.avg, trend_pct: g.trend, hist_median: g.p50, days: g.days,
+  }));
 
   const extra = `ناشر جدید — در داده‌ها یافت نشد\nبازدید روزانه: ${fmt(targetPV)} پیج‌ویو\nتحلیل بر اساس ${similar.length} ناشر مشابه (از نظر حجم ترافیک):`;
-  setupResults(`ناشر جدید — ${fmt(targetPV)} pageview`, monthlyTrend);
+  setupResults(`ناشر جدید — ${fmt(targetPV)} pageview`, monthlyTrend, groups);
   showPage('results');
   await runAnalysis('ناشر جدید', '—', stats, extra, monthlyTrend);
 }
@@ -522,7 +693,180 @@ $('pv-back').addEventListener('click', () => { $('pv-input').value = ''; showPag
 
 $('new-search-btn').addEventListener('click', () => {
   foundPub = null;
+  comparePubs = [];
   $('pub-input').value = '';
   $('pv-input').value = '';
+  renderCmpChips();
   showPage('search');
 });
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+$('mode-single-btn').addEventListener('click', () => {
+  $('mode-single-btn').classList.add('active');
+  $('mode-compare-btn').classList.remove('active');
+  $('single-wrap').style.display = '';
+  $('compare-wrap').style.display = 'none';
+});
+
+$('mode-compare-btn').addEventListener('click', () => {
+  $('mode-compare-btn').classList.add('active');
+  $('mode-single-btn').classList.remove('active');
+  $('single-wrap').style.display = 'none';
+  $('compare-wrap').style.display = '';
+  loadData().catch(() => {});
+});
+
+// ── Compare chip management ───────────────────────────────────────────────────
+function renderCmpChips() {
+  $('cmp-chips').innerHTML = comparePubs.map(p =>
+    `<div class="cmp-chip">
+      <span>${p.name}</span>
+      <button class="cmp-chip-rm" data-appid="${p.appId}">×</button>
+    </div>`
+  ).join('');
+  $('cmp-go-btn').style.display  = comparePubs.length >= 2 ? '' : 'none';
+  $('cmp-hint').textContent = comparePubs.length < 2
+    ? 'حداقل ۲ ناشر اضافه کنید'
+    : `${comparePubs.length} ناشر انتخاب شده — می‌توانید تا ۴ ناشر اضافه کنید`;
+}
+
+$('cmp-chips').addEventListener('click', e => {
+  const btn = e.target.closest('.cmp-chip-rm');
+  if (!btn) return;
+  comparePubs = comparePubs.filter(p => p.appId !== btn.dataset.appid);
+  renderCmpChips();
+});
+
+function addComparePub(appId, name, pub) {
+  if (comparePubs.find(p => p.appId === appId)) return;
+  if (comparePubs.length >= 4) return;
+  comparePubs.push({ appId, name, pub });
+  renderCmpChips();
+}
+
+// ── Compare autocomplete ──────────────────────────────────────────────────────
+let cmpAcIndex = -1;
+
+function renderCmpSuggestions(items) {
+  const box = $('cmp-suggestions');
+  if (!items.length) { box.style.display = 'none'; return; }
+  box.innerHTML = items.map((it, i) =>
+    `<div class="sug-item" data-appid="${it.appId}" data-name="${it.name}" data-idx="${i}">
+       <span class="sug-name">${it.name}</span>
+       <span class="sug-id">${it.appId}</span>
+     </div>`
+  ).join('');
+  box.style.display = '';
+  cmpAcIndex = -1;
+}
+
+function highlightCmpSug(idx) {
+  $('cmp-suggestions').querySelectorAll('.sug-item')
+    .forEach((el, i) => el.classList.toggle('sug-active', i === idx));
+}
+
+function addFromCmpSug(appId, name) {
+  const pub = allData[appId];
+  if (!pub) return;
+  addComparePub(appId, name || pub.publisher_name || appId, pub);
+  $('cmp-input').value = '';
+  $('cmp-suggestions').style.display = 'none';
+  cmpAcIndex = -1;
+}
+
+$('cmp-input').addEventListener('input', () => {
+  renderCmpSuggestions(getSuggestions($('cmp-input').value));
+});
+
+$('cmp-input').addEventListener('keydown', e => {
+  const box   = $('cmp-suggestions');
+  const items = box.querySelectorAll('.sug-item');
+  if (box.style.display !== 'none' && items.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmpAcIndex = Math.min(cmpAcIndex+1, items.length-1); highlightCmpSug(cmpAcIndex); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); cmpAcIndex = Math.max(cmpAcIndex-1, -1); highlightCmpSug(cmpAcIndex); return; }
+    if (e.key === 'Enter' && cmpAcIndex >= 0) {
+      e.preventDefault();
+      const a = items[cmpAcIndex];
+      addFromCmpSug(a.dataset.appid, a.dataset.name);
+      return;
+    }
+    if (e.key === 'Escape') { box.style.display = 'none'; return; }
+  }
+  if (e.key === 'Enter') {
+    const first = box.querySelector('.sug-item');
+    if (first) addFromCmpSug(first.dataset.appid, first.dataset.name);
+  }
+});
+
+$('cmp-suggestions').addEventListener('mousedown', e => {
+  const item = e.target.closest('.sug-item');
+  if (!item) return;
+  e.preventDefault();
+  addFromCmpSug(item.dataset.appid, item.dataset.name);
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#compare-wrap')) $('cmp-suggestions').style.display = 'none';
+});
+
+// ── Render comparison results ─────────────────────────────────────────────────
+$('cmp-go-btn').addEventListener('click', async () => {
+  if (comparePubs.length < 2) return;
+  $('loading-msg').textContent = 'در حال محاسبه مقایسه...';
+  showPage('loading');
+  await renderComparison();
+});
+
+async function renderComparison() {
+  const pubsData = comparePubs.map(p => ({
+    name: p.name, appId: p.appId,
+    groups: computeGroupStats(p.pub.positions),
+  }));
+
+  const nameList = pubsData.map(p => p.name).join(' · ');
+  $('bar-query').textContent = nameList;
+  $('pub-row').innerHTML = `
+    <span class="pub-row-name">مقایسه ناشران</span>
+    <span class="pub-row-meta">${pubsData.length} ناشر</span>`;
+
+  const cmpHtml = renderCompareTable(pubsData);
+  $('results-body').innerHTML = `
+    ${cmpHtml}
+    <div id="stream-output" class="stream-output">
+      <span style="color:#ccc;font-size:0.88rem;">در حال تحلیل مقایسه...</span>
+    </div>
+    <span id="stream-cursor" class="stream-cursor"></span>`;
+
+  showPage('results');
+
+  // Build LLM context
+  const [jy, jm] = todayJalali();
+  const groupsCtx = pubsData.map(p => {
+    const gs = p.groups.map(g =>
+      `  ${g.name}: p50=${g.p50.toLocaleString()} | avg=${g.avg.toLocaleString()} | ترند=${g.trend}٪/ماه`
+    ).join('\n');
+    return `### ${p.name} (${p.appId})\n${gs}`;
+  }).join('\n\n');
+
+  const CMP_SYSTEM = `تو متخصص قیمت‌گذاری تبلیغات دیجیتال در شبکه یکتانت هستی.
+وظیفه: مقایسه ناشران و ارائه RPM تضمینی پیشنهادی به تفکیک گروه جایگاه.
+RPM = درآمد به ازای هر ۱۰۰۰ پیج‌ویو (واحد: تومان).
+تاریخ امروز: ${J_MONTHS[jm-1]} ${jy}.
+جدول مقایسه قبلاً نمایش داده شده. فقط یک تحلیل مقایسه‌ای کوتاه بنویس (۴-۵ جمله) و RPM پیشنهادی برای هر گروه مهم ارائه بده.`;
+
+  const CMP_USER = `مقایسه ناشران زیر:\n\n${groupsCtx}`;
+
+  const outEl = $('stream-output');
+  const curEl = $('stream-cursor');
+  let text = '';
+  try {
+    for await (const chunk of streamLLM(CMP_SYSTEM, CMP_USER)) {
+      text += chunk;
+      outEl.innerHTML = md(text);
+    }
+  } catch (e) {
+    outEl.innerHTML += `<div class="api-err">⚠️ ${e.message}</div>`;
+  } finally {
+    if (curEl) curEl.remove();
+  }
+}
