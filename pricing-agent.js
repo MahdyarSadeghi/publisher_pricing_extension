@@ -58,23 +58,26 @@ function classifyPosition(posType, desc) {
   if (t === 'article-display-card')   return { key: 'native_display_mid', name: 'همسان تصویری میان مطلب' };
 
   if (t === 'article-display') {
-    if (/سايدبار|ساید.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
+    if (/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
       return { key: 'native_display_sidebar', name: 'همسان تصویری سایدبار' };
-    if (/ميان|بين.?مطلب|بين.?متن|ابتداي|بالاي.?(خبر|مطلب)|زير.?(ليد|عكس)/.test(d))
+    if (/ميان|بين.?مطلب|بين.?متن|ابتدا|بالاي.?(خبر|مطلب)|زير.?(ليد|عكس)/.test(d))
       return { key: 'native_display_mid',     name: 'همسان تصویری میان مطلب' };
     return { key: 'native_display_end', name: 'همسان تصویری انتهای مطلب' };
   }
 
   if (t === 'article-text') {
-    if (/سايدبار|ساید.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
+    if (/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
       return { key: 'native_text_sidebar', name: 'همسان متنی سایدبار' };
-    if (/ميان|بين.?مطلب|ابتداي/.test(d))
+    if (/ميان|بين.?مطلب|ابتدا/.test(d))
       return { key: 'native_text_mid',     name: 'همسان متنی میان مطلب' };
     return { key: 'native_text_end', name: 'همسان متنی انتهای مطلب' };
   }
 
-  // banner-article: check desc for sticky variants
-  if (/استيكي/.test(d)) return { key: 'sticky', name: 'استیکی' };
+  // banner-article: sub-classify by desc
+  if (/استيكي/.test(d))                                          return { key: 'sticky',          name: 'استیکی' };
+  if (/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))    return { key: 'banner_sidebar',   name: 'بنر سایدبار' };
+  if (/هدر|header|ابتدا|بالاي|زير.?(ليد|عكس)/.test(d))          return { key: 'banner_top',       name: 'بنر بالا' };
+  if (/انتها|پايين|زير.?تمامي/.test(d))                          return { key: 'banner_end',       name: 'بنر پایین' };
   return { key: 'banner', name: 'بنر' };
 }
 
@@ -93,7 +96,7 @@ function computeGroupStats(positions) {
     groups[key].posCount++;
   }
 
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_end','banner_sidebar','banner'];
   const result = [];
   for (const [key, g] of Object.entries(groups)) {
     if (!g.allRows.length) continue;
@@ -141,7 +144,7 @@ function renderGroupTable(groups) {
 
 // ── Render multi-publisher comparison table ───────────────────────────────────
 function renderCompareTable(pubsData) {
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_end','banner_sidebar','banner'];
   const keyMap = new Map(); // key → name
   for (const pub of pubsData) {
     for (const g of pub.groups) {
