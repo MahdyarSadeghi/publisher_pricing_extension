@@ -45,7 +45,7 @@ const pct50 = arr => { if (!arr.length) return 0; const s = [...arr].sort((a,b)=
 
 // ── Position Classification ───────────────────────────────────────────────────
 // Returns { key, name } — canonical group for a position based on its description + type.
-function classifyPosition(desc, posType) {
+function classifyPosition(posType) {
   const t = (posType || '').toLowerCase().trim();
   const map = {
     'notification':           { key: 'notification',       name: 'نوتیفیکیشن' },
@@ -65,7 +65,7 @@ function classifyPosition(desc, posType) {
 function computeGroupStats(positions) {
   const groups = {};
   for (const pos of Object.values(positions)) {
-    const { key, name } = classifyPosition(pos.desc, pos.type);
+    const { key, name } = classifyPosition(pos.type);
     if (!groups[key]) groups[key] = { name, allRows: [], posCount: 0 };
     // Only data from فروردین ۱۴۰۴ onwards
     const filtered = pos.rows.filter(([date]) => {

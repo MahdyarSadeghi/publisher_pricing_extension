@@ -97,7 +97,7 @@ function computePositionStats(){
 }
 
 // ── Position Classification ────────────────────────────────────
-function classifyPos(desc,posType){
+function classifyPos(posType){
   var t=(posType||'').toLowerCase().trim();
   var map={
     'notification':           {key:'notification',       name:'نوتیفیکیشن'},
@@ -118,7 +118,7 @@ function computeGroupStats(positions){
   var groups={};
   Object.keys(positions).forEach(function(posId){
     var pos=positions[posId];
-    var g=classifyPos(pos.desc||pos.description,pos.type||pos.positionType);
+    var g=classifyPos(pos.type||pos.positionType);
     if(!groups[g.key])groups[g.key]={name:g.name,rows:[],cnt:0};
     var filtered=(pos.rows||[]).filter(function(r){var p=r[0].split('-').map(Number);return gToJ(p[0],p[1],p[2]).y>=1404;});
     groups[g.key].rows=groups[g.key].rows.concat(filtered);
