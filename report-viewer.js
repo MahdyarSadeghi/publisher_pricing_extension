@@ -129,11 +129,12 @@ function classifyPos(posType,desc){
   if(/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))  return{key:'banner_sidebar', name:'بنر سایدبار'};
   if(/هدر|header|ابتدا|بالاي|زير.?(ليد|عكس)/.test(d))        return{key:'banner_top',    name:'بنر بالا'};
   if(/انتها|پايين|زير.?تمامي/.test(d))                        return{key:'banner_end',    name:'بنر پایین'};
-  return{key:'banner',name:'بنر'};
+  if(/ميان|بين.?مطلب|بين.?متن/.test(d))                      return{key:'banner_mid',    name:'بنر میان مطلب'};
+  return{key:'banner_top',name:'بنر بالا'};
 }
 
 function computeGroupStats(positions){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_end','banner_sidebar','banner'];
+  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   var groups={};
   Object.keys(positions).forEach(function(posId){
     var pos=positions[posId];
@@ -190,7 +191,7 @@ function buildGroupTable(groups){
 }
 
 function buildCmpTable(pubsData){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_end','banner_sidebar','banner'];
+  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   var keyMap={};
   pubsData.forEach(function(p){p.groups.forEach(function(g){if(!keyMap[g.key])keyMap[g.key]=g.name;});});
   var keys=Object.keys(keyMap).sort(function(a,b){

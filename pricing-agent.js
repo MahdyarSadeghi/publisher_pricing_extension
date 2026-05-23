@@ -74,11 +74,12 @@ function classifyPosition(posType, desc) {
   }
 
   // banner-article: sub-classify by desc
-  if (/استيكي/.test(d))                                          return { key: 'sticky',          name: 'استیکی' };
-  if (/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))    return { key: 'banner_sidebar',   name: 'بنر سایدبار' };
-  if (/هدر|header|ابتدا|بالاي|زير.?(ليد|عكس)/.test(d))          return { key: 'banner_top',       name: 'بنر بالا' };
-  if (/انتها|پايين|زير.?تمامي/.test(d))                          return { key: 'banner_end',       name: 'بنر پایین' };
-  return { key: 'banner', name: 'بنر' };
+  if (/استيكي/.test(d))                                          return { key: 'sticky',        name: 'استیکی' };
+  if (/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))    return { key: 'banner_sidebar', name: 'بنر سایدبار' };
+  if (/هدر|header|ابتدا|بالاي|زير.?(ليد|عكس)/.test(d))          return { key: 'banner_top',     name: 'بنر بالا' };
+  if (/انتها|پايين|زير.?تمامي/.test(d))                          return { key: 'banner_end',     name: 'بنر پایین' };
+  if (/ميان|بين.?مطلب|بين.?متن/.test(d))                        return { key: 'banner_mid',     name: 'بنر میان مطلب' };
+  return { key: 'banner_top', name: 'بنر بالا' };
 }
 
 // ── Compute canonical group stats for a publisher's positions ─────────────────
@@ -96,7 +97,7 @@ function computeGroupStats(positions) {
     groups[key].posCount++;
   }
 
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_end','banner_sidebar','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   const result = [];
   for (const [key, g] of Object.entries(groups)) {
     if (!g.allRows.length) continue;
@@ -144,7 +145,7 @@ function renderGroupTable(groups) {
 
 // ── Render multi-publisher comparison table ───────────────────────────────────
 function renderCompareTable(pubsData) {
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_end','banner_sidebar','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   const keyMap = new Map(); // key → name
   for (const pub of pubsData) {
     for (const g of pub.groups) {
