@@ -440,11 +440,105 @@ function initTooltips(){
 }
 
 // ── Filter bar ─────────────────────────────────────────────────
-function buildYMSelects(pfx,jy,jm,minY,maxY){
-  var yO='';for(var y=minY;y<=maxY;y++)yO+='<option value="'+y+'"'+(y===jy?' selected':'')+'>'+toFa(y)+'</option>';
-  var mO=MONTHS.map(function(m,i){return'<option value="'+(i+1)+'"'+((i+1)===jm?' selected':'')+'>'+m+'</option>';}).join('');
-  return'<select class="filter-sel fsel" id="'+pfx+'-y">'+yO+'</select>'+
-         '<select class="filter-sel fsel" id="'+pfx+'-m">'+mO+'</select>';
+// ── Jalali month-range picker ──────────────────────────────────
+var drpState={};  // id -> {fromISO,toISO,pickStep,viewY,cb}
+function drpLabel(fromISO,toISO){
+  var f=fromISO?isoToJ(fromISO):null;
+  var t=toISO?isoToJ(toISO):null;
+  if(f&&t)return toFa(f.y)+'/'+MONTHS[f.m-1]+' — '+toFa(t.y)+'/'+MONTHS[t.m-1];
+  if(f)return toFa(f.y)+'/'+MONTHS[f.m-1]+' — ...';
+  return 'انتخاب بازه';
+}
+function buildDRP(id){
+  return'<div class="drp-wrap" id="drp-wrap-'+id+'">'+
+    '<button class="drp-btn" id="drp-btn-'+id+'" type="button">'+
+      '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="3" width="12" height="12" rx="2"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>'+
+      '<span id="drp-lbl-'+id+'">انتخاب بازه</span>'+
+      '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 3.5L5 7l3-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+    '</button>'+
+    '<div class="drp-cal drp-cal-hidden" id="drp-cal-'+id+'">'+
+      '<div class="drp-year-nav">'+
+        '<button class="drp-nav-btn" id="drp-next-'+id+'">‹</button>'+
+        '<span class="drp-year-lbl" id="drp-year-'+id+'"></span>'+
+        '<button class="drp-nav-btn" id="drp-prev-'+id+'">›</button>'+
+      '</div>'+
+      '<div class="drp-months" id="drp-months-'+id+'"></div>'+
+      '<div class="drp-hint" id="drp-hint-'+id+'">ابتدای بازه را انتخاب کنید</div>'+
+    '</div>'+
+  '</div>';
+}
+function drpRenderGrid(id){
+  var st=drpState[id];
+  if(!st)return;
+  var vy=st.viewY;
+  document.getElementById('drp-year-'+id).textContent=toFa(vy);
+  var fj=st.fromISO?isoToJ(st.fromISO):null;
+  var tj=st.toISO?isoToJ(st.toISO):null;
+  var tempFj=st.tempFrom?isoToJ(st.tempFrom):null;
+  var html='';
+  MONTHS.forEach(function(mname,mi){
+    var ym1=vy*100+(mi+1);
+    var fromYM=fj?fj.y*100+fj.m:null;
+    var toYM=tj?tj.y*100+tj.m:null;
+    var tempYM=tempFj?tempFj.y*100+tempFj.m:null;
+    var isSel=(fromYM&&ym1===fromYM)||(toYM&&ym1===toYM)||(tempYM&&ym1===tempYM);
+    var isRange=fromYM&&toYM&&ym1>fromYM&&ym1<toYM;
+    var cls='drp-m-btn'+(isSel?' selected':'')+(isRange?' in-range':'');
+    html+='<button class="'+cls+'" data-y="'+vy+'" data-m="'+(mi+1)+'" type="button">'+mname+'</button>';
+  });
+  document.getElementById('drp-months-'+id).innerHTML=html;
+  var hint=st.pickStep===1?'پایان بازه را انتخاب کنید':'ابتدای بازه را انتخاب کنید';
+  document.getElementById('drp-hint-'+id).textContent=hint;
+  document.getElementById('drp-months-'+id).querySelectorAll('.drp-m-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var y=+btn.getAttribute('data-y'),m=+btn.getAttribute('data-m');
+      var iso=jToISO(y,m,1);
+      if(st.pickStep===0){
+        st.tempFrom=iso; st.fromISO=iso; st.toISO=null; st.pickStep=1;
+      } else {
+        if(iso<st.fromISO){st.toISO=st.fromISO;st.fromISO=iso;}
+        else st.toISO=jToISO(y,m,29);
+        st.pickStep=0; st.tempFrom=null;
+        drpClose(id);
+        document.getElementById('drp-lbl-'+id).textContent=drpLabel(st.fromISO,st.toISO);
+        if(st.cb)st.cb(st.fromISO,st.toISO);
+        return;
+      }
+      drpRenderGrid(id);
+    });
+  });
+}
+function drpOpen(id){
+  var cal=document.getElementById('drp-cal-'+id);
+  if(!cal)return;
+  cal.classList.remove('drp-cal-hidden');
+  document.getElementById('drp-btn-'+id).classList.add('open');
+  drpRenderGrid(id);
+}
+function drpClose(id){
+  var cal=document.getElementById('drp-cal-'+id);
+  if(cal)cal.classList.add('drp-cal-hidden');
+  var btn=document.getElementById('drp-btn-'+id);
+  if(btn)btn.classList.remove('open');
+}
+function wireDRP(id,fromISO,toISO,cb){
+  drpState[id]={fromISO:fromISO||null,toISO:toISO||null,pickStep:0,tempFrom:null,viewY:fromISO?isoToJ(fromISO).y:1404,cb:cb};
+  var lbl=document.getElementById('drp-lbl-'+id);
+  if(lbl)lbl.textContent=drpLabel(fromISO,toISO);
+  var btn=document.getElementById('drp-btn-'+id);
+  if(btn)btn.addEventListener('click',function(e){e.stopPropagation();
+    var cal=document.getElementById('drp-cal-'+id);
+    if(cal&&!cal.classList.contains('drp-cal-hidden'))drpClose(id);
+    else drpOpen(id);
+  });
+  var prevBtn=document.getElementById('drp-prev-'+id);
+  var nextBtn=document.getElementById('drp-next-'+id);
+  if(prevBtn)prevBtn.addEventListener('click',function(e){e.stopPropagation();drpState[id].viewY--;drpRenderGrid(id);});
+  if(nextBtn)nextBtn.addEventListener('click',function(e){e.stopPropagation();drpState[id].viewY++;drpRenderGrid(id);});
+  document.addEventListener('click',function handler(e){
+    var wrap=document.getElementById('drp-wrap-'+id);
+    if(wrap&&!wrap.contains(e.target)){drpClose(id);}
+  },{capture:true,once:false});
 }
 function buildDateSelects(pfx,jy,jm,jd,minY,maxY){
   var yO='';for(var y=minY;y<=maxY;y++)yO+='<option value="'+y+'"'+(y===jy?' selected':'')+'>'+toFa(y)+'</option>';
@@ -455,21 +549,14 @@ function buildDateSelects(pfx,jy,jm,jd,minY,maxY){
          '<select class="filter-sel fsel" id="'+pfx+'-d">'+dO+'</select>';
 }
 function buildFilterBar(){
-  var fj=filterFromISO?isoToJ(filterFromISO):{y:1400,m:1,d:1};
-  var tj=filterToISO?isoToJ(filterToISO):{y:1404,m:12,d:29};
-  var minY=dataMinISO?isoToJ(dataMinISO).y:1400;
-  var maxY=dataMaxISO?isoToJ(dataMaxISO).y:1404;
   return'<div class="filter-bar" id="filter-bar">'+
-    // pos search — rightmost in RTL
     '<div class="pos-sw" id="pos-sw">'+
       '<div class="pos-tags" id="pos-tags"></div>'+
       '<input class="pos-inp" id="pos-inp" type="text" placeholder="فیلتر جایگاه..." autocomplete="off"/>'+
       '<div class="pos-dd" id="pos-dd"></div>'+
     '</div>'+
     '<div class="fbar-div"></div>'+
-    '<div class="filter-group"><label class="filter-lbl">از</label>'+buildYMSelects('ff',fj.y,fj.m,minY,maxY+1)+'</div>'+
-    '<div class="filter-group"><label class="filter-lbl">تا</label>'+buildYMSelects('ft',tj.y,tj.m,minY,maxY+1)+'</div>'+
-    '<button class="filter-btn" id="flt-apply">اعمال</button>'+
+    buildDRP('fbar')+
     '<div class="filter-sep"></div>'+
     '<div class="toggle-group">'+
       '<button class="toggle-btn'+(chartMode==='monthly'?' active':'')+'" id="tog-monthly">ماهانه</button>'+
@@ -478,12 +565,7 @@ function buildFilterBar(){
   '</div>';
 }
 function wireFilterBar(){
-  var applyBtn=document.getElementById('flt-apply');
-  if(applyBtn)applyBtn.addEventListener('click',function(){
-    try{filterFromISO=jToISO(+document.getElementById('ff-y').value,+document.getElementById('ff-m').value,1);}catch(e){}
-    try{filterToISO=jToISO(+document.getElementById('ft-y').value,+document.getElementById('ft-m').value,29);}catch(e){}
-    rerenderCharts();
-  });
+  wireDRP('fbar',filterFromISO,filterToISO,function(f,t){filterFromISO=f;filterToISO=t;rerenderCharts();});
   var togM=document.getElementById('tog-monthly'),togD=document.getElementById('tog-daily');
   if(togM)togM.addEventListener('click',function(){chartMode='monthly';togM.classList.add('active');togD.classList.remove('active');rerenderCharts();});
   if(togD)togD.addEventListener('click',function(){chartMode='daily';togD.classList.add('active');togM.classList.remove('active');rerenderCharts();});
@@ -580,29 +662,12 @@ function buildPositionTable(stats,pubPct){
 function rerenderCharts(){
   if(!reportData)return;
   chartDataStore={};
-  var bd=filteredPubDaily();
   var pts=getPubPts();
-  var pvVals=Object.keys(bd).filter(function(k){return bd[k].pv>0;}).map(function(k){return bd[k].pv;});
-  var avgPv=pvVals.length?pvVals.reduce(function(s,v){return s+v;},0)/pvVals.length:0;
-  var vd=Object.keys(bd).filter(function(k){return bd[k].pv>0;});
-  var totalRpm=vd.length?vd.reduce(function(s,k){return s+bd[k].adv/bd[k].pv;},0)/vd.length:null;
-  var totalAdv=Object.keys(bd).reduce(function(s,k){return s+bd[k].adv;},0);
   var el;
-  el=document.getElementById('stat-rpm');if(el)el.textContent=fmtRpm(totalRpm);
-  el=document.getElementById('stat-pv');if(el)el.textContent=fmtNum(avgPv);
-  el=document.getElementById('stat-adv');if(el)el.textContent=fmtNum(vd.length?totalAdv/vd.length:0);
-  el=document.getElementById('chart-rpm');if(el)el.innerHTML=makeLineSvg(pts,1200,220,{pL:68,pR:20,pT:18,pB:44},'rpm');
-  el=document.getElementById('chart-adv');if(el)el.innerHTML=makeLineSvg(pts,600,190,{pL:72,pR:16,pT:16,pB:42},'totalAdv');
-  el=document.getElementById('chart-pv');if(el)el.innerHTML=makeLineSvg(pts,600,190,{pL:72,pR:16,pT:16,pB:42},'avgPv');
-  el=document.getElementById('outlook-section');if(el)el.innerHTML=buildOutlookHTML(computeOutlook(bd));
-  var posStats=computePositionStats(),pubPct=computePubPercentiles(bd);
-  el=document.getElementById('pos-table-wrap');if(el)el.innerHTML=buildPositionTable(posStats,pubPct);
+  el=document.getElementById('chart-rpm');if(el)el.innerHTML=makeLineSvg(pts,1200,200,{pL:68,pR:20,pT:14,pB:40},'rpm');
+  el=document.getElementById('chart-adv');if(el)el.innerHTML=makeLineSvg(pts,600,160,{pL:72,pR:16,pT:12,pB:38},'totalAdv');
+  el=document.getElementById('chart-pv');if(el)el.innerHTML=makeLineSvg(pts,600,160,{pL:72,pR:16,pT:12,pB:38},'avgPv');
   initTooltips();
-}
-function updateScreenshots(){
-  var bd=filteredPubDaily(),pubPct=computePubPercentiles(bd);
-  var el=document.getElementById('pos-table-wrap');
-  if(el)el.innerHTML=buildPositionTable(computePositionStats(),pubPct);
 }
 
 // ── Main render ────────────────────────────────────────────────
@@ -621,31 +686,17 @@ function render(d){
   allMonthKeys=Object.keys(keySet).sort();
   if(!filterFromISO)filterFromISO=d.from||dataMinISO;
   if(!filterToISO)filterToISO=d.to||dataMaxISO;
-  var bd=filteredPubDaily(),pts=getPubPts(),outlook=computeOutlook(bd);
-  var pvVals=Object.keys(bd).filter(function(k){return bd[k].pv>0;}).map(function(k){return bd[k].pv;});
-  var avgPv=pvVals.length?pvVals.reduce(function(s,v){return s+v;},0)/pvVals.length:0;
-  var vd=Object.keys(bd).filter(function(k){return bd[k].pv>0;});
-  var totalRpm=vd.length?vd.reduce(function(s,k){return s+bd[k].adv/bd[k].pv;},0)/vd.length:null;
-  var totalAdv=Object.keys(bd).reduce(function(s,k){return s+bd[k].adv;},0);
-  var posStats=computePositionStats(),pubPct=computePubPercentiles(bd);
+  var bd=filteredPubDaily(),pts=getPubPts();
   var html='';
   // Header
   html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">ن</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.appId||'')+'&nbsp;&middot;&nbsp;'+esc(d.pageTitle||'')+'</div></div></div></div>';
   html+=buildFilterBar();
   html+='<div class="main">';
-  html+='<div class="stats-row">'+
-    '<div class="stat-card"><div class="stat-card-lbl">میانگین RPM</div><div class="stat-card-val" id="stat-rpm">'+fmtRpm(totalRpm)+'</div><div class="stat-card-unit">تومان / نمایش</div></div>'+
-    '<div class="stat-card"><div class="stat-card-lbl">میانگین PV روزانه</div><div class="stat-card-val" id="stat-pv">'+fmtNum(avgPv)+'</div><div class="stat-card-unit">بازدید در روز</div></div>'+
-    '<div class="stat-card"><div class="stat-card-lbl">میانگین درآمد روزانه</div><div class="stat-card-val" id="stat-adv" style="font-size:18px">'+fmtNum(vd.length?totalAdv/vd.length:0)+'</div><div class="stat-card-unit">تومان در روز</div></div>'+
-  '</div>';
-  html+='<div class="sec-lbl">ترند RPM</div><div class="chart-section" id="chart-rpm">'+makeLineSvg(pts,1200,220,{pL:68,pR:20,pT:18,pB:44},'rpm')+'</div>';
+  html+='<div class="sec-lbl">ترند RPM</div><div class="chart-section" id="chart-rpm">'+makeLineSvg(pts,1200,200,{pL:68,pR:20,pT:14,pB:40},'rpm')+'</div>';
   html+='<div class="charts-duo">'+
-    '<div><div class="sec-lbl">هزینه تبلیغات</div><div class="chart-section" id="chart-adv">'+makeLineSvg(pts,600,190,{pL:72,pR:16,pT:16,pB:42},'totalAdv')+'</div></div>'+
-    '<div><div class="sec-lbl">بازدید صفحه (PV)</div><div class="chart-section" id="chart-pv">'+makeLineSvg(pts,600,190,{pL:72,pR:16,pT:16,pB:42},'avgPv')+'</div></div>'+
+    '<div><div class="sec-lbl">هزینه تبلیغات</div><div class="chart-section" id="chart-adv">'+makeLineSvg(pts,600,160,{pL:72,pR:16,pT:12,pB:38},'totalAdv')+'</div></div>'+
+    '<div><div class="sec-lbl">بازدید صفحه (PV)</div><div class="chart-section" id="chart-pv">'+makeLineSvg(pts,600,160,{pL:72,pR:16,pT:12,pB:38},'avgPv')+'</div></div>'+
   '</div>';
-  if(outlook)html+='<div class="sec-lbl">چشم‌انداز درآمدی</div><div class="outlook-row" id="outlook-section">'+buildOutlookHTML(outlook)+'</div>';
-  else html+='<div id="outlook-section"></div>';
-  html+='<div class="sec-lbl">جایگاه‌های تبلیغاتی</div><div id="pos-table-wrap">'+buildPositionTable(posStats,pubPct)+'</div>';
   html+='</div>';  // close .main
   // Comparison section (directly after main, no tab wrapper)
   if(!cmpFromISO)cmpFromISO=jToISO(1404,1,1);
@@ -671,11 +722,7 @@ function render(d){
       '<button class="cmp-mode-btn'+(cmpMode==='group'?' active':'')+'" id="cmp-btn-group">گروه‌بندی</button>'+
       '<button class="cmp-mode-btn'+(cmpMode==='desc'?' active':'')+'" id="cmp-btn-desc">جایگاه‌ها</button>'+
     '</div>'+
-    '<div class="cmp-date-row">'+
-      '<label class="filter-lbl">از</label>'+buildYMSelects('cf',cfJ.y,cfJ.m,minYR,maxYR+1)+
-      '<label class="filter-lbl">تا</label>'+buildYMSelects('ct',ctJ.y,ctJ.m,minYR,maxYR+1)+
-      '<button class="filter-btn" id="cmp-date-apply">اعمال</button>'+
-    '</div>'+
+    buildDRP('cmp')+
   '</div>';
   // Desc filter bar (mode 2)
   html+='<div class="cmp-desc-bar" id="cmp-desc-bar" style="display:'+(cmpMode==='desc'?'flex':'none')+'">'+
@@ -750,13 +797,8 @@ function wireCmpTab(){
     if(descBar)descBar.style.display='flex';
     refreshCmpTab();
   });
-  // Date filter
-  var applyDate=document.getElementById('cmp-date-apply');
-  if(applyDate)applyDate.addEventListener('click',function(){
-    try{cmpFromISO=jToISO(+document.getElementById('cf-y').value,+document.getElementById('cf-m').value,1);}catch(e){}
-    try{cmpToISO=jToISO(+document.getElementById('ct-y').value,+document.getElementById('ct-m').value,29);}catch(e){}
-    refreshCmpTab();
-  });
+  // Date range picker
+  wireDRP('cmp',cmpFromISO,cmpToISO,function(f,t){cmpFromISO=f;cmpToISO=t;refreshCmpTab();});
   // Desc filter
   var descInp=document.getElementById('cmp-desc-inp');
   if(descInp)descInp.addEventListener('input',function(){cmpDescFilter=descInp.value;refreshCmpTab();});
@@ -816,6 +858,6 @@ chrome.storage.onChanged.addListener(function(changes,area){
   if(area!=='local'||!changes.ynprice_report)return;
   var nv=changes.ynprice_report.newValue;
   if(!nv||!reportData)return;
-  if(nv.screenshots){reportData.screenshots=nv.screenshots;updateScreenshots();}
+  if(nv.screenshots){reportData.screenshots=nv.screenshots;}
 });
 })();

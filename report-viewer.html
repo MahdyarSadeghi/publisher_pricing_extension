@@ -184,6 +184,22 @@
     .cmp-desc-bar{display:flex;margin-bottom:14px;}
     .cmp-desc-inp{font-family:inherit;font-size:12px;background:var(--subtle);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);direction:rtl;width:300px;outline:none;}
     .cmp-desc-inp:focus{border-color:var(--accent);}
+    /* Date range picker */
+    .drp-wrap{position:relative;flex-shrink:0;}
+    .drp-btn{font-family:inherit;font-size:12px;background:var(--subtle);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:border-color .15s;}
+    .drp-btn:hover,.drp-btn.open{border-color:var(--accent);}
+    .drp-cal{position:absolute;top:calc(100% + 6px);right:0;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:600;padding:16px;min-width:240px;}
+    .drp-cal-hidden{display:none;}
+    .drp-year-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+    .drp-nav-btn{font-family:inherit;font-size:15px;background:none;border:1px solid var(--border);border-radius:6px;width:28px;height:28px;cursor:pointer;color:var(--text);display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+    .drp-nav-btn:hover{background:var(--subtle);}
+    .drp-year-lbl{font-size:14px;font-weight:700;}
+    .drp-months{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;}
+    .drp-m-btn{font-family:inherit;font-size:12px;background:none;border:1px solid transparent;border-radius:7px;padding:7px 2px;cursor:pointer;color:var(--text);text-align:center;transition:background .12s,border-color .12s;}
+    .drp-m-btn:hover{background:var(--subtle);}
+    .drp-m-btn.in-range{background:rgba(254,208,73,.18);}
+    .drp-m-btn.selected{background:var(--accent);color:#1c1917;border-color:var(--accent);font-weight:700;}
+    .drp-hint{font-size:11px;color:var(--muted);text-align:center;padding-top:8px;border-top:1px solid var(--border);}
   </style>
 </head>
 <body>
