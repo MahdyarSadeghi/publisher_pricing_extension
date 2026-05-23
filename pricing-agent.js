@@ -45,27 +45,44 @@ const pct50 = arr => { if (!arr.length) return 0; const s = [...arr].sort((a,b)=
 
 // ── Position Classification ───────────────────────────────────────────────────
 // Returns { key, name } — canonical group for a position based on its description + type.
-function classifyPosition(posType) {
+function classifyPosition(posType, desc) {
   const t = (posType || '').toLowerCase().trim();
-  const map = {
-    'notification':           { key: 'notification',       name: 'نوتیفیکیشن' },
-    'pre_roll':               { key: 'pre_roll',           name: 'پری‌رول' },
-    'slider':                 { key: 'slider',             name: 'اسلایدر' },
-    'banner-sticky':          { key: 'sticky',             name: 'استیکی' },
-    'footer-sticky':          { key: 'sticky',             name: 'استیکی' },
-    'article-display-card':   { key: 'native_display_mid', name: 'همسان تصویری میان مطلب' },
-    'article-display-sticky': { key: 'native_sticky',      name: 'همسان استیکی' },
-    'article-display':        { key: 'native_display_end', name: 'همسان تصویری انتهای مطلب' },
-    'article-text':           { key: 'native_text_end',    name: 'همسان متنی انتهای مطلب' },
-  };
-  return map[t] || { key: 'banner', name: 'بنر' };
+  const d = (desc || '').replace(/ی/g, 'ي').replace(/ک/g, 'ك');
+
+  if (t === 'notification')           return { key: 'notification',       name: 'نوتیفیکیشن' };
+  if (t === 'pre_roll')               return { key: 'pre_roll',           name: 'پری‌رول' };
+  if (t === 'slider')                 return { key: 'slider',             name: 'اسلایدر' };
+  if (t === 'banner-sticky' || t === 'footer-sticky')
+                                      return { key: 'sticky',             name: 'استیکی' };
+  if (t === 'article-display-sticky') return { key: 'native_sticky',      name: 'همسان استیکی' };
+  if (t === 'article-display-card')   return { key: 'native_display_mid', name: 'همسان تصویری میان مطلب' };
+
+  if (t === 'article-display') {
+    if (/سايدبار|ساید.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
+      return { key: 'native_display_sidebar', name: 'همسان تصویری سایدبار' };
+    if (/ميان|بين.?مطلب|بين.?متن|ابتداي|بالاي.?(خبر|مطلب)|زير.?(ليد|عكس)/.test(d))
+      return { key: 'native_display_mid',     name: 'همسان تصویری میان مطلب' };
+    return { key: 'native_display_end', name: 'همسان تصویری انتهای مطلب' };
+  }
+
+  if (t === 'article-text') {
+    if (/سايدبار|ساید.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
+      return { key: 'native_text_sidebar', name: 'همسان متنی سایدبار' };
+    if (/ميان|بين.?مطلب|ابتداي/.test(d))
+      return { key: 'native_text_mid',     name: 'همسان متنی میان مطلب' };
+    return { key: 'native_text_end', name: 'همسان متنی انتهای مطلب' };
+  }
+
+  // banner-article: check desc for sticky variants
+  if (/استيكي/.test(d)) return { key: 'sticky', name: 'استیکی' };
+  return { key: 'banner', name: 'بنر' };
 }
 
 // ── Compute canonical group stats for a publisher's positions ─────────────────
 function computeGroupStats(positions) {
   const groups = {};
   for (const pos of Object.values(positions)) {
-    const { key, name } = classifyPosition(pos.type);
+    const { key, name } = classifyPosition(pos.type, pos.desc);
     if (!groups[key]) groups[key] = { name, allRows: [], posCount: 0 };
     // Only data from فروردین ۱۴۰۴ onwards
     const filtered = pos.rows.filter(([date]) => {
@@ -76,7 +93,7 @@ function computeGroupStats(positions) {
     groups[key].posCount++;
   }
 
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner'];
   const result = [];
   for (const [key, g] of Object.entries(groups)) {
     if (!g.allRows.length) continue;
@@ -124,7 +141,7 @@ function renderGroupTable(groups) {
 
 // ── Render multi-publisher comparison table ───────────────────────────────────
 function renderCompareTable(pubsData) {
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner'];
   const keyMap = new Map(); // key → name
   for (const pub of pubsData) {
     for (const g of pub.groups) {

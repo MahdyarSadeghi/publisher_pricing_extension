@@ -97,28 +97,43 @@ function computePositionStats(){
 }
 
 // ── Position Classification ────────────────────────────────────
-function classifyPos(posType){
+function classifyPos(posType,desc){
   var t=(posType||'').toLowerCase().trim();
-  var map={
-    'notification':           {key:'notification',       name:'نوتیفیکیشن'},
-    'pre_roll':               {key:'pre_roll',           name:'پری‌رول'},
-    'slider':                 {key:'slider',             name:'اسلایدر'},
-    'banner-sticky':          {key:'sticky',             name:'استیکی'},
-    'footer-sticky':          {key:'sticky',             name:'استیکی'},
-    'article-display-card':   {key:'native_display_mid', name:'همسان تصویری میان مطلب'},
-    'article-display-sticky': {key:'native_sticky',      name:'همسان استیکی'},
-    'article-display':        {key:'native_display_end', name:'همسان تصویری انتهای مطلب'},
-    'article-text':           {key:'native_text_end',    name:'همسان متنی انتهای مطلب'},
-  };
-  return map[t]||{key:'banner',name:'بنر'};
+  var d=(desc||'').replace(/ی/g,'ي').replace(/ک/g,'ك');
+
+  if(t==='notification')          return{key:'notification',          name:'نوتیفیکیشن'};
+  if(t==='pre_roll')              return{key:'pre_roll',              name:'پری‌رول'};
+  if(t==='slider')                return{key:'slider',                name:'اسلایدر'};
+  if(t==='banner-sticky'||t==='footer-sticky') return{key:'sticky',  name:'استیکی'};
+  if(t==='article-display-sticky')return{key:'native_sticky',        name:'همسان استیکی'};
+  if(t==='article-display-card')  return{key:'native_display_mid',   name:'همسان تصویری میان مطلب'};
+
+  if(t==='article-display'){
+    if(/سايدبار|ساید.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
+      return{key:'native_display_sidebar',name:'همسان تصویری سایدبار'};
+    if(/ميان|بين.?مطلب|بين.?متن|ابتداي|بالاي.?(خبر|مطلب)|زير.?(ليد|عكس)/.test(d))
+      return{key:'native_display_mid',    name:'همسان تصویری میان مطلب'};
+    return{key:'native_display_end',name:'همسان تصویری انتهای مطلب'};
+  }
+
+  if(t==='article-text'){
+    if(/سايدبار|ساید.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))
+      return{key:'native_text_sidebar',name:'همسان متنی سایدبار'};
+    if(/ميان|بين.?مطلب|ابتداي/.test(d))
+      return{key:'native_text_mid',    name:'همسان متنی میان مطلب'};
+    return{key:'native_text_end',name:'همسان متنی انتهای مطلب'};
+  }
+
+  if(/استيكي/.test(d)) return{key:'sticky',name:'استیکی'};
+  return{key:'banner',name:'بنر'};
 }
 
 function computeGroupStats(positions){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
+  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner'];
   var groups={};
   Object.keys(positions).forEach(function(posId){
     var pos=positions[posId];
-    var g=classifyPos(pos.type||pos.positionType);
+    var g=classifyPos(pos.type||pos.positionType,pos.desc||pos.description);
     if(!groups[g.key])groups[g.key]={name:g.name,rows:[],cnt:0};
     var filtered=(pos.rows||[]).filter(function(r){var p=r[0].split('-').map(Number);return gToJ(p[0],p[1],p[2]).y>=1404;});
     groups[g.key].rows=groups[g.key].rows.concat(filtered);
@@ -171,7 +186,7 @@ function buildGroupTable(groups){
 }
 
 function buildCmpTable(pubsData){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
+  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner'];
   var keyMap={};
   pubsData.forEach(function(p){p.groups.forEach(function(g){if(!keyMap[g.key])keyMap[g.key]=g.name;});});
   var keys=Object.keys(keyMap).sort(function(a,b){
