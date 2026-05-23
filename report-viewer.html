@@ -73,6 +73,7 @@
     .ld-logo { width:50px; height:50px; background:var(--accent); color:#1c1917; border-radius:13px; font-size:25px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-bottom:4px; }
     #loading p { font-size:14px; }
     .filter-bar { background:var(--card); border-bottom:1px solid var(--border); padding:10px 24px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; position:sticky; top:64px; z-index:100; }
+    /* tab-bar styles kept for reference but no longer used */
     .filter-group { display:flex; align-items:center; gap:6px; }
     .filter-lbl { font-size:11px; color:var(--muted); white-space:nowrap; }
     .filter-sel { font-family:inherit; font-size:12px; background:var(--subtle); border:1px solid var(--border); border-radius:6px; padding:5px 8px; color:var(--text); direction:rtl; cursor:pointer; }
@@ -135,9 +136,10 @@
     @media(max-width:640px){.tab-bar{top:56px;padding:0 14px;}}
     .tab-btn{font-family:inherit;font-size:13px;font-weight:600;padding:11px 18px;background:none;border:none;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer;margin-bottom:-2px;transition:color .15s,border-color .15s;}
     .tab-btn.active{color:var(--text);border-bottom-color:var(--accent);}
-    /* filter-bar now sits below tab-bar */
-    .filter-bar{top:108px!important;}
-    @media(max-width:640px){.filter-bar{top:100px!important;}}
+    /* filter-bar sits directly below header */
+    .filter-bar{top:64px!important;}
+    @media(max-width:640px){.filter-bar{top:56px!important;}}
+    .cmp-section{background:var(--subtle);border-top:2px solid var(--border);}
     /* ── Comparison panel ── */
     .cmp-panel{padding:24px 24px 64px;}
     .cmp-pub-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;min-height:32px;}

@@ -476,6 +476,24 @@
 
     var list=$("positions-list");
     list.innerHTML="";
+    var searchBar=document.getElementById('pos-search-bar');
+    if(searchBar)searchBar.style.display='';
+    var searchInp=document.getElementById('pos-search-inp');
+    if(searchInp){
+      searchInp.addEventListener('input',function(){
+        var q=searchInp.value.toLowerCase();
+        document.querySelectorAll('#positions-list [data-posid]').forEach(function(card){
+          var name=(card.querySelector('.pos-name')||{textContent:''}).textContent.toLowerCase();
+          var id=(card.getAttribute('data-posid')||'').toLowerCase();
+          card.style.display=(!q||name.indexOf(q)>=0||id.indexOf(q)>=0)?'':'none';
+        });
+        // hide empty section headers
+        document.querySelectorAll('.pos-block-top90,.pos-block-bottom-label').forEach(function(block){
+          var visible=block.querySelectorAll('[data-posid]:not([style*="display: none"]):not([style*="display:none"])');
+          block.style.display=visible.length?'':'none';
+        });
+      });
+    }
 
     var totalAdv=withRpm.reduce(function(s,p){return s+(p.totalAdv||0);},0);
     var cumul=0,splitIdx=withRpm.length-1;
