@@ -440,6 +440,12 @@ function initTooltips(){
 }
 
 // ── Filter bar ─────────────────────────────────────────────────
+function buildYMSelects(pfx,jy,jm,minY,maxY){
+  var yO='';for(var y=minY;y<=maxY;y++)yO+='<option value="'+y+'"'+(y===jy?' selected':'')+'>'+toFa(y)+'</option>';
+  var mO=MONTHS.map(function(m,i){return'<option value="'+(i+1)+'"'+((i+1)===jm?' selected':'')+'>'+m+'</option>';}).join('');
+  return'<select class="filter-sel fsel" id="'+pfx+'-y">'+yO+'</select>'+
+         '<select class="filter-sel fsel" id="'+pfx+'-m">'+mO+'</select>';
+}
 function buildDateSelects(pfx,jy,jm,jd,minY,maxY){
   var yO='';for(var y=minY;y<=maxY;y++)yO+='<option value="'+y+'"'+(y===jy?' selected':'')+'>'+toFa(y)+'</option>';
   var mO=MONTHS.map(function(m,i){return'<option value="'+(i+1)+'"'+((i+1)===jm?' selected':'')+'>'+m+'</option>';}).join('');
@@ -461,8 +467,8 @@ function buildFilterBar(){
       '<div class="pos-dd" id="pos-dd"></div>'+
     '</div>'+
     '<div class="fbar-div"></div>'+
-    '<div class="filter-group"><label class="filter-lbl">از</label>'+buildDateSelects('ff',fj.y,fj.m,fj.d,minY,maxY+1)+'</div>'+
-    '<div class="filter-group"><label class="filter-lbl">تا</label>'+buildDateSelects('ft',tj.y,tj.m,tj.d,minY,maxY+1)+'</div>'+
+    '<div class="filter-group"><label class="filter-lbl">از</label>'+buildYMSelects('ff',fj.y,fj.m,minY,maxY+1)+'</div>'+
+    '<div class="filter-group"><label class="filter-lbl">تا</label>'+buildYMSelects('ft',tj.y,tj.m,minY,maxY+1)+'</div>'+
     '<button class="filter-btn" id="flt-apply">اعمال</button>'+
     '<div class="filter-sep"></div>'+
     '<div class="toggle-group">'+
@@ -474,8 +480,8 @@ function buildFilterBar(){
 function wireFilterBar(){
   var applyBtn=document.getElementById('flt-apply');
   if(applyBtn)applyBtn.addEventListener('click',function(){
-    try{filterFromISO=jToISO(+document.getElementById('ff-y').value,+document.getElementById('ff-m').value,+document.getElementById('ff-d').value);}catch(e){}
-    try{filterToISO=jToISO(+document.getElementById('ft-y').value,+document.getElementById('ft-m').value,+document.getElementById('ft-d').value);}catch(e){}
+    try{filterFromISO=jToISO(+document.getElementById('ff-y').value,+document.getElementById('ff-m').value,1);}catch(e){}
+    try{filterToISO=jToISO(+document.getElementById('ft-y').value,+document.getElementById('ft-m').value,29);}catch(e){}
     rerenderCharts();
   });
   var togM=document.getElementById('tog-monthly'),togD=document.getElementById('tog-daily');
@@ -625,10 +631,6 @@ function render(d){
   var html='';
   // Header
   html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">ن</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.appId||'')+'&nbsp;&middot;&nbsp;'+esc(d.pageTitle||'')+'</div></div></div></div>';
-  // Tab bar
-  html+='<div class="tab-bar"><button class="tab-btn active" id="tbtn-report">گزارش</button><button class="tab-btn" id="tbtn-compare">مقایسه</button></div>';
-  // Report tab
-  html+='<div id="tab-report">';
   html+=buildFilterBar();
   html+='<div class="main">';
   html+='<div class="stats-row">'+
@@ -645,15 +647,14 @@ function render(d){
   else html+='<div id="outlook-section"></div>';
   html+='<div class="sec-lbl">جایگاه‌های تبلیغاتی</div><div id="pos-table-wrap">'+buildPositionTable(posStats,pubPct)+'</div>';
   html+='</div>';  // close .main
-  html+='</div>';  // close #tab-report
-  // Comparison tab
+  // Comparison section (directly after main, no tab wrapper)
   if(!cmpFromISO)cmpFromISO=jToISO(1404,1,1);
   if(!cmpToISO&&dataMaxISO)cmpToISO=dataMaxISO;
   var cfJ=cmpFromISO?isoToJ(cmpFromISO):{y:1404,m:1,d:1};
   var ctJ=cmpToISO?isoToJ(cmpToISO):{y:1405,m:12,d:29};
   var minYR=dataMinISO?isoToJ(dataMinISO).y:1404;
   var maxYR=dataMaxISO?isoToJ(dataMaxISO).y:1405;
-  html+='<div id="tab-compare" style="display:none"><div class="cmp-panel">';
+  html+='<div id="cmp-section"><div class="cmp-panel">';
   html+='<p class="sec-lbl">مقایسه جایگاه‌ها</p>';
   // Publisher row
   html+='<div class="cmp-pub-row">'+
@@ -671,8 +672,8 @@ function render(d){
       '<button class="cmp-mode-btn'+(cmpMode==='desc'?' active':'')+'" id="cmp-btn-desc">جایگاه‌ها</button>'+
     '</div>'+
     '<div class="cmp-date-row">'+
-      '<label class="filter-lbl">از</label>'+buildDateSelects('cf',cfJ.y,cfJ.m,cfJ.d,minYR,maxYR+1)+
-      '<label class="filter-lbl">تا</label>'+buildDateSelects('ct',ctJ.y,ctJ.m,ctJ.d,minYR,maxYR+1)+
+      '<label class="filter-lbl">از</label>'+buildYMSelects('cf',cfJ.y,cfJ.m,minYR,maxYR+1)+
+      '<label class="filter-lbl">تا</label>'+buildYMSelects('ct',ctJ.y,ctJ.m,minYR,maxYR+1)+
       '<button class="filter-btn" id="cmp-date-apply">اعمال</button>'+
     '</div>'+
   '</div>';
@@ -685,29 +686,11 @@ function render(d){
   root.innerHTML=html;
   wireFilterBar();
   initTooltips();
-  wireTabBar();
   wireCmpTab();
-}
-
-// ── Tab bar ────────────────────────────────────────────────────
-function wireTabBar(){
-  var tbR=document.getElementById('tbtn-report');
-  var tbC=document.getElementById('tbtn-compare');
-  var tR=document.getElementById('tab-report');
-  var tC=document.getElementById('tab-compare');
-  if(!tbR||!tbC)return;
-  tbR.addEventListener('click',function(){
-    tbR.classList.add('active');tbC.classList.remove('active');
-    tR.style.display='';tC.style.display='none';
-  });
-  tbC.addEventListener('click',function(){
-    tbC.classList.add('active');tbR.classList.remove('active');
-    tC.style.display='';tR.style.display='none';
-    if(!cmpPubs.length&&pubData&&reportData){
-      cmpPubs=[{pubId:reportData.appId,name:reportData.publisherName||reportData.appId,positions:pubData.positions}];
-      refreshCmpTab();
-    }
-  });
+  if(!cmpPubs.length&&pubData&&d){
+    cmpPubs=[{pubId:d.appId,name:d.publisherName||d.appId,positions:pubData.positions}];
+    refreshCmpTab();
+  }
 }
 
 // ── Comparison tab ──────────────────────────────────────────────
@@ -770,8 +753,8 @@ function wireCmpTab(){
   // Date filter
   var applyDate=document.getElementById('cmp-date-apply');
   if(applyDate)applyDate.addEventListener('click',function(){
-    try{cmpFromISO=jToISO(+document.getElementById('cf-y').value,+document.getElementById('cf-m').value,+document.getElementById('cf-d').value);}catch(e){}
-    try{cmpToISO=jToISO(+document.getElementById('ct-y').value,+document.getElementById('ct-m').value,+document.getElementById('ct-d').value);}catch(e){}
+    try{cmpFromISO=jToISO(+document.getElementById('cf-y').value,+document.getElementById('cf-m').value,1);}catch(e){}
+    try{cmpToISO=jToISO(+document.getElementById('ct-y').value,+document.getElementById('ct-m').value,29);}catch(e){}
     refreshCmpTab();
   });
   // Desc filter
