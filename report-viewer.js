@@ -129,8 +129,8 @@ function classifyPos(posType,desc){
 
   // banner-article: sub-classify by desc
   if(/استيكي/.test(d)){
-    if(/پايين|فوتر|footer|پا.?صفحه/.test(d)) return{key:'sticky_bottom',name:'استیکی پایین'};
-    return{key:'sticky_top',name:'استیکی بالا'};
+    if(/بالا|هدر|header|top/.test(d)) return{key:'sticky_top',name:'استیکی بالا'};
+    return{key:'sticky_bottom',name:'استیکی پایین'};
   }
   if(/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))  return{key:'banner_sidebar', name:'بنر سایدبار'};
   if(/هدر|header|ابتدا|بالاي|زير.?(ليد|عكس)/.test(d))        return{key:'banner_top',    name:'بنر بالا'};
@@ -180,7 +180,22 @@ function computeGroupStats(positions,fromISO,toISO){
     ai=ai===-1?99:ai;bi=bi===-1?99:bi;
     return ai-bi||a.key.localeCompare(b.key);
   });
-  return result;
+  // Site-level total: sum costs, max PV per date across ALL positions
+  var siteBy={};
+  Object.keys(positions).forEach(function(posId){
+    var pos=positions[posId];
+    (pos.rows||[]).filter(function(r){return r[0]>=from&&r[0]<=to;}).forEach(function(r){
+      if(!siteBy[r[0]])siteBy[r[0]]={c:0,p:0};
+      siteBy[r[0]].c+=r[1];
+      siteBy[r[0]].p=Math.max(siteBy[r[0]].p,r[2]);
+    });
+  });
+  var siteDailyRpms=Object.keys(siteBy).filter(function(d){return siteBy[d].p>0;}).map(function(d){return siteBy[d].c/siteBy[d].p;}).sort(function(a,b){return a-b;});
+  var sn=siteDailyRpms.length;
+  var siteP50=sn?siteDailyRpms[Math.floor(sn*.5)]:null;
+  var siteAvg=sn?siteDailyRpms.reduce(function(s,v){return s+v;},0)/sn:null;
+  var totalCnt=result.reduce(function(s,g){return s+g.cnt;},0);
+  return{groups:result,totalP50:siteP50,totalAvg:siteAvg,totalCnt:totalCnt};
 }
 
 function computePosStatsByDesc(positions,fromISO,toISO,descFilter){
@@ -258,14 +273,12 @@ function multiSparkline(pubsMonthly,W,H){
   return'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block">'+lines+'</svg>';
 }
 
-function buildGroupTable(groups){
+function buildGroupTable(statsResult){
+  var groups=Array.isArray(statsResult)?statsResult:(statsResult.groups||[]);
+  var siteTotals=Array.isArray(statsResult)?null:statsResult;
   if(!groups.length)return'<div class="chart-empty">داده‌ای موجود نیست</div>';
   // sort by p50 RPM descending
   var sorted=groups.slice().sort(function(a,b){return(b.p50||0)-(a.p50||0);});
-  var totalCnt=sorted.reduce(function(s,g){return s+g.cnt;},0);
-  var allRpms=[];sorted.forEach(function(g){if(g.p50!=null)allRpms.push(g.p50);});
-  var totalP50=allRpms.length?allRpms.sort(function(a,b){return a-b;})[Math.floor(allRpms.length*.5)]:null;
-  var totalAvg=allRpms.length?allRpms.reduce(function(s,v){return s+v;},0)/allRpms.length:null;
   var rows=sorted.map(function(g){
     return'<tr>'+
       '<td class="grp-td">'+esc(g.name)+'</td>'+
@@ -276,10 +289,10 @@ function buildGroupTable(groups){
     '</tr>';
   }).join('');
   var totalRow='<tr class="grp-total-row">'+
-    '<td class="grp-td">جمع / میانه کل</td>'+
-    '<td class="val-td-c"><strong>'+toFa(totalCnt)+'</strong></td>'+
-    '<td class="val-td"><strong>'+fmtRpm(totalP50)+'</strong></td>'+
-    '<td class="val-td">'+fmtRpm(totalAvg)+'</td>'+
+    '<td class="grp-td">RPM کل سایت</td>'+
+    '<td class="val-td-c"><strong>'+(siteTotals?toFa(siteTotals.totalCnt):'—')+'</strong></td>'+
+    '<td class="val-td"><strong>'+fmtRpm(siteTotals?siteTotals.totalP50:null)+'</strong></td>'+
+    '<td class="val-td">'+fmtRpm(siteTotals?siteTotals.totalAvg:null)+'</td>'+
     '<td class="spark-td"></td>'+
   '</tr>';
   return'<table class="grp-tbl"><thead><tr>'+
@@ -483,13 +496,22 @@ function initTooltips(){
 }
 
 // ── Filter bar ─────────────────────────────────────────────────
-// ── Jalali month-range picker ──────────────────────────────────
+// ── Jalali day-range picker ──────────────────────────────────
 var drpState={};  // id -> {fromISO,toISO,pickStep,viewY,viewM,cb}
+function jDaysInMonth(jy,jm){
+  if(jm<=6)return 31;if(jm<=11)return 30;
+  var g=jToG(jy,12,30),b=gToJ(g.y,g.m,g.d);return(b.m===12&&b.d===30)?30:29;
+}
+function jFirstDow(jy,jm){
+  var g=jToG(jy,jm,1);
+  var js=new Date(Date.UTC(g.y,g.m-1,g.d)).getUTCDay();
+  return(js+1)%7; // 0=شنبه ... 6=جمعه
+}
 function drpLabel(fromISO,toISO){
   var f=fromISO?isoToJ(fromISO):null;
   var t=toISO?isoToJ(toISO):null;
-  if(f&&t)return toFa(f.y)+'/'+MONTHS[f.m-1]+' — '+toFa(t.y)+'/'+MONTHS[t.m-1];
-  if(f)return MONTHS[f.m-1]+' '+toFa(f.y)+' — انتخاب پایان';
+  if(f&&t)return toFa(f.y)+'/'+toFa(f.m)+'/'+toFa(f.d)+' — '+toFa(t.y)+'/'+toFa(t.m)+'/'+toFa(t.d);
+  if(f)return toFa(f.y)+'/'+toFa(f.m)+'/'+toFa(f.d)+' — انتخاب پایان';
   return 'انتخاب بازه زمانی';
 }
 function buildDRP(id){
@@ -499,14 +521,13 @@ function buildDRP(id){
       '<span id="drp-lbl-'+id+'">انتخاب بازه</span>'+
     '</button>'+
     '<div class="drp-cal drp-cal-hidden" id="drp-cal-'+id+'">'+
-      '<div class="drp-year-nav">'+
-        '<button class="drp-nav-btn" id="drp-pY-'+id+'" title="سال قبل">«</button>'+
-        '<button class="drp-nav-btn" id="drp-pM-'+id+'" title="ماه قبل">‹</button>'+
+      '<div class="drp-cal-nav">'+
+        '<button class="drp-nav-btn" id="drp-pM-'+id+'">‹</button>'+
         '<span class="drp-year-lbl" id="drp-head-'+id+'"></span>'+
-        '<button class="drp-nav-btn" id="drp-nM-'+id+'" title="ماه بعد">›</button>'+
-        '<button class="drp-nav-btn" id="drp-nY-'+id+'" title="سال بعد">»</button>'+
+        '<button class="drp-nav-btn" id="drp-nM-'+id+'">›</button>'+
       '</div>'+
-      '<div class="drp-months" id="drp-months-'+id+'"></div>'+
+      '<div class="drp-dow-hdr"><span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span></div>'+
+      '<div class="drp-grid" id="drp-grid-'+id+'"></div>'+
       '<div class="drp-hint" id="drp-hint-'+id+'"></div>'+
       '<div class="drp-reset-row"><button class="drp-reset-btn" id="drp-reset-'+id+'" type="button">پاک کردن</button></div>'+
     '</div>'+
@@ -516,44 +537,36 @@ function drpRenderGrid(id){
   var st=drpState[id];
   if(!st)return;
   var vy=st.viewY,vm=st.viewM;
-  var headEl=document.getElementById('drp-head-'+id);
-  if(headEl)headEl.textContent=MONTHS[vm-1]+' '+toFa(vy);
-  var fj=st.fromISO?isoToJ(st.fromISO):null;
-  var tj=st.toISO?isoToJ(st.toISO):null;
-  var fromYM=fj?fj.y*100+fj.m:null;
-  var toYM=tj?tj.y*100+tj.m:null;
-  // Show 12 months starting from viewY/viewM
+  document.getElementById('drp-head-'+id).textContent=MONTHS[vm-1]+' '+toFa(vy);
+  var days=jDaysInMonth(vy,vm),dow=jFirstDow(vy,vm);
+  var fromISO=st.fromISO,toISO=st.toISO;
   var html='';
-  for(var i=0;i<12;i++){
-    var my=vy,mm=vm+i;while(mm>12){mm-=12;my++;}
-    var ym1=my*100+mm;
-    var isSel=(fromYM&&ym1===fromYM)||(toYM&&ym1===toYM);
-    var isRange=fromYM&&toYM&&ym1>fromYM&&ym1<toYM;
-    var cls='drp-m-btn'+(isSel?' selected':'')+(isRange?' in-range':'');
-    html+='<button class="'+cls+'" data-y="'+my+'" data-m="'+mm+'" type="button">'+
-      '<span class="drp-m-name">'+MONTHS[mm-1]+'</span>'+
-      '<span class="drp-m-year">'+toFa(my)+'</span>'+
-    '</button>';
+  for(var i=0;i<dow;i++)html+='<div class="drp-d-empty"></div>';
+  for(var d=1;d<=days;d++){
+    var iso=jToISO(vy,vm,d);
+    var isSel=iso===fromISO||iso===toISO;
+    var isRange=fromISO&&toISO&&iso>fromISO&&iso<toISO;
+    var isFrom=iso===fromISO,isTo=iso===toISO;
+    var cls='drp-d-btn'+(isSel?' selected':'')+(isRange?' in-range':'')+(isFrom?' sel-from':'')+(isTo?' sel-to':'');
+    html+='<button class="'+cls+'" data-iso="'+iso+'" type="button">'+toFa(d)+'</button>';
   }
-  document.getElementById('drp-months-'+id).innerHTML=html;
-  var hintEl=document.getElementById('drp-hint-'+id);
-  if(hintEl)hintEl.textContent=st.pickStep===1?'ماه پایان بازه را انتخاب کنید':'ماه شروع بازه را انتخاب کنید';
-  document.getElementById('drp-months-'+id).querySelectorAll('.drp-m-btn').forEach(function(btn){
+  document.getElementById('drp-grid-'+id).innerHTML=html;
+  document.getElementById('drp-hint-'+id).textContent=st.pickStep===1?'روز پایان بازه را انتخاب کنید':'روز شروع بازه را انتخاب کنید';
+  document.getElementById('drp-grid-'+id).querySelectorAll('.drp-d-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
-      var y=+btn.getAttribute('data-y'),m=+btn.getAttribute('data-m');
-      var iso=jToISO(y,m,1);
+      var iso=btn.getAttribute('data-iso');
       if(st.pickStep===0){
-        st.fromISO=iso; st.toISO=null; st.pickStep=1;
-      } else {
+        st.fromISO=iso;st.toISO=null;st.pickStep=1;
+        document.getElementById('drp-lbl-'+id).textContent=drpLabel(iso,null);
+        drpRenderGrid(id); // stay open, re-render highlighted
+      }else{
         if(iso<st.fromISO){st.toISO=st.fromISO;st.fromISO=iso;}
-        else st.toISO=jToISO(y,m,29);
+        else st.toISO=iso;
         st.pickStep=0;
-        drpClose(id);
         document.getElementById('drp-lbl-'+id).textContent=drpLabel(st.fromISO,st.toISO);
+        drpClose(id);
         if(st.cb)st.cb(st.fromISO,st.toISO);
-        return;
       }
-      drpRenderGrid(id);
     });
   });
 }
@@ -582,12 +595,9 @@ function wireDRP(id,fromISO,toISO,cb){
     else drpOpen(id);
   });
   function navM(delta){drpState[id].viewM+=delta;while(drpState[id].viewM<1){drpState[id].viewM+=12;drpState[id].viewY--;}while(drpState[id].viewM>12){drpState[id].viewM-=12;drpState[id].viewY++;}drpRenderGrid(id);}
-  function navY(delta){drpState[id].viewY+=delta;drpRenderGrid(id);}
   var el;
   el=document.getElementById('drp-pM-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navM(-1);});
   el=document.getElementById('drp-nM-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navM(1);});
-  el=document.getElementById('drp-pY-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navY(-1);});
-  el=document.getElementById('drp-nY-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navY(1);});
   el=document.getElementById('drp-reset-'+id);
   if(el)el.addEventListener('click',function(e){e.stopPropagation();
     drpState[id].fromISO=null;drpState[id].toISO=null;drpState[id].pickStep=0;
@@ -883,11 +893,11 @@ function refreshCmpTab(){
   if(!cmpPubs.length){tableEl.innerHTML='';return;}
   if(cmpMode==='group'){
     if(cmpPubs.length>=2){
-      var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,groups:computeGroupStats(p.positions,filterFromISO,filterToISO)};});
+      var pubsData=cmpPubs.map(function(p){var r=computeGroupStats(p.positions,filterFromISO,filterToISO);return{name:p.name,pubId:p.pubId,groups:r.groups};});
       tableEl.innerHTML=buildCmpTable(pubsData);
     }else{
-      var groups=computeGroupStats(cmpPubs[0].positions,filterFromISO,filterToISO);
-      tableEl.innerHTML='<div class="sec-lbl" style="margin:0 0 16px">'+esc(cmpPubs[0].name)+'</div>'+buildGroupTable(groups);
+      var statsResult=computeGroupStats(cmpPubs[0].positions,filterFromISO,filterToISO);
+      tableEl.innerHTML='<div class="sec-lbl" style="margin:0 0 16px">'+esc(cmpPubs[0].name)+'</div>'+buildGroupTable(statsResult);
     }
   }else{
     var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,positions:p.positions};});
