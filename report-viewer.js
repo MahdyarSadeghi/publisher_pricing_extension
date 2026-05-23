@@ -27,8 +27,6 @@ var selectedPosIds=null;
 var chartDataStore={};
 var allPubData=null;
 var cmpPubs=[];        // [{pubId, name, positions}]
-var cmpFromISO=null;   // initialized in render()
-var cmpToISO=null;
 var cmpMode='group';   // 'group' | 'desc'
 var cmpDescFilter='';
 
@@ -108,7 +106,8 @@ function classifyPos(posType,desc){
   if(t==='notification')          return{key:'notification',          name:'نوتیفیکیشن'};
   if(t==='pre_roll')              return{key:'pre_roll',              name:'پری‌رول'};
   if(t==='slider')                return{key:'slider',                name:'اسلایدر'};
-  if(t==='banner-sticky'||t==='footer-sticky') return{key:'sticky',  name:'استیکی'};
+  if(t==='banner-sticky') return{key:'sticky_top',  name:'استیکی بالا'};
+  if(t==='footer-sticky') return{key:'sticky_bottom',name:'استیکی پایین'};
   if(t==='article-display-sticky')return{key:'native_sticky',        name:'همسان استیکی'};
   if(t==='article-display-card')  return{key:'native_display_mid',   name:'همسان تصویری میان مطلب'};
 
@@ -129,7 +128,10 @@ function classifyPos(posType,desc){
   }
 
   // banner-article: sub-classify by desc
-  if(/استيكي/.test(d))                                        return{key:'sticky',        name:'استیکی'};
+  if(/استيكي/.test(d)){
+    if(/پايين|فوتر|footer|پا.?صفحه/.test(d)) return{key:'sticky_bottom',name:'استیکی پایین'};
+    return{key:'sticky_top',name:'استیکی بالا'};
+  }
   if(/سايدبار|سايد.?بار|نوار جانبي|سمت (چپ|راست)/.test(d))  return{key:'banner_sidebar', name:'بنر سایدبار'};
   if(/هدر|header|ابتدا|بالاي|زير.?(ليد|عكس)/.test(d))        return{key:'banner_top',    name:'بنر بالا'};
   if(/انتها|پايين|زير.?تمامي/.test(d))                        return{key:'banner_end',    name:'بنر پایین'};
@@ -140,7 +142,7 @@ function classifyPos(posType,desc){
 function computeGroupStats(positions,fromISO,toISO){
   var from=fromISO||jToISO(1404,1,1);
   var to=toISO||'9999-12-31';
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
+  var ORDER=['notification','pre_roll','slider','sticky_top','sticky_bottom','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   var groups={};
   Object.keys(positions).forEach(function(posId){
     var pos=positions[posId];
@@ -215,7 +217,9 @@ function computePosStatsByDesc(positions,fromISO,toISO,descFilter){
   }).filter(Boolean).sort(function(a,b){return a.desc.localeCompare(b.desc,'fa');});
 }
 
-function miniSparkline(monthly,W,H){
+var PUB_COLORS=['#FED049','#60a5fa','#34d399','#f87171'];
+
+function miniSparkline(monthly,W,H,color){
   if(!monthly||monthly.length<2)return'<span style="color:var(--muted);font-size:10px">—</span>';
   var vals=monthly.map(function(m){return m.rpm;});
   var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=mx-mn||0.001;
@@ -226,45 +230,83 @@ function miniSparkline(monthly,W,H){
     return x.toFixed(1)+','+y.toFixed(1);
   }).join(' ');
   var last=vals[vals.length-1],first=vals[0];
-  var col=last>first*1.05?'#22c55e':last<first*0.95?'#ef4444':'#FED049';
+  var col=color||(last>first*1.05?'#22c55e':last<first*0.95?'#ef4444':'#FED049');
   return'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block">'+
     '<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'+
     '</svg>';
 }
 
+// Combined multi-publisher sparkline — one SVG, one line per publisher
+function multiSparkline(pubsMonthly,W,H){
+  var hasData=pubsMonthly.some(function(m){return m&&m.length>=2;});
+  if(!hasData)return'<span style="color:var(--muted);font-size:10px">—</span>';
+  var allVals=[];
+  pubsMonthly.forEach(function(m){if(m)m.forEach(function(p){allVals.push(p.rpm);});});
+  var mn=Math.min.apply(null,allVals),mx=Math.max.apply(null,allVals),rng=mx-mn||0.001;
+  var pad=2,lines='';
+  pubsMonthly.forEach(function(monthly,pi){
+    if(!monthly||monthly.length<2)return;
+    var col=PUB_COLORS[pi]||'#aaa';
+    var n=monthly.length;
+    var pts=monthly.map(function(m,i){
+      var x=pad+(n===1?W/2:(i/(n-1))*(W-2*pad));
+      var y=pad+(1-(m.rpm-mn)/rng)*(H-2*pad);
+      return x.toFixed(1)+','+y.toFixed(1);
+    }).join(' ');
+    lines+='<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+  });
+  return'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block">'+lines+'</svg>';
+}
+
 function buildGroupTable(groups){
   if(!groups.length)return'<div class="chart-empty">داده‌ای موجود نیست</div>';
-  var rows=groups.map(function(g){
+  // sort by p50 RPM descending
+  var sorted=groups.slice().sort(function(a,b){return(b.p50||0)-(a.p50||0);});
+  var totalCnt=sorted.reduce(function(s,g){return s+g.cnt;},0);
+  var allRpms=[];sorted.forEach(function(g){if(g.p50!=null)allRpms.push(g.p50);});
+  var totalP50=allRpms.length?allRpms.sort(function(a,b){return a-b;})[Math.floor(allRpms.length*.5)]:null;
+  var totalAvg=allRpms.length?allRpms.reduce(function(s,v){return s+v;},0)/allRpms.length:null;
+  var rows=sorted.map(function(g){
     return'<tr>'+
       '<td class="grp-td">'+esc(g.name)+'</td>'+
       '<td class="val-td-c">'+toFa(g.cnt)+'</td>'+
       '<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td>'+
       '<td class="val-td">'+fmtRpm(g.avg)+'</td>'+
-      '<td class="spark-td">'+miniSparkline(g.monthly,88,28)+'</td>'+
+      '<td class="spark-td">'+miniSparkline(g.monthly,88,26)+'</td>'+
     '</tr>';
   }).join('');
+  var totalRow='<tr class="grp-total-row">'+
+    '<td class="grp-td">جمع / میانه کل</td>'+
+    '<td class="val-td-c"><strong>'+toFa(totalCnt)+'</strong></td>'+
+    '<td class="val-td"><strong>'+fmtRpm(totalP50)+'</strong></td>'+
+    '<td class="val-td">'+fmtRpm(totalAvg)+'</td>'+
+    '<td class="spark-td"></td>'+
+  '</tr>';
   return'<table class="grp-tbl"><thead><tr>'+
     '<th>گروه</th><th>تعداد</th><th>p50 RPM</th><th>میانگین</th><th>ترند</th>'+
-    '</tr></thead><tbody>'+rows+'</tbody></table>';
+    '</tr></thead><tbody>'+rows+totalRow+'</tbody></table>';
 }
 
 function buildCmpTable(pubsData){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_display_sidebar','native_text_mid','native_text_end','native_text_sidebar','banner_top','banner_mid','banner_end','banner_sidebar'];
   var keyMap={};
   pubsData.forEach(function(p){p.groups.forEach(function(g){if(!keyMap[g.key])keyMap[g.key]=g.name;});});
+  // sort keys by max avg p50 across publishers descending
   var keys=Object.keys(keyMap).sort(function(a,b){
-    var ai=ORDER.findIndex(function(o){return a.indexOf(o)===0;});
-    var bi=ORDER.findIndex(function(o){return b.indexOf(o)===0;});
-    ai=ai===-1?99:ai;bi=bi===-1?99:bi;return ai-bi||a.localeCompare(b);
+    var aV=Math.max.apply(null,pubsData.map(function(p){var g=p.groups.find(function(x){return x.key===a;});return g?(g.p50||0):0;}));
+    var bV=Math.max.apply(null,pubsData.map(function(p){var g=p.groups.find(function(x){return x.key===b;});return g?(g.p50||0):0;}));
+    return bV-aV;
   });
   var np=pubsData.length;
-  var pubSubHdrs=pubsData.map(function(p){
-    return'<th class="pub-sub-hdr">'+esc(p.name.split(' ')[0])+'<br><span class="pub-col-id">'+esc(p.pubId)+'</span></th>';
+  var pubLegend='<div class="cmp-legend">'+pubsData.map(function(p,i){
+    return'<span class="cmp-legend-dot" style="background:'+PUB_COLORS[i]+'"></span><span class="cmp-legend-lbl">'+esc(p.name.split(' ')[0])+'</span>';
+  }).join('')+'</div>';
+  var pubSubHdrs=pubsData.map(function(p,i){
+    return'<th class="pub-sub-hdr"><span class="cmp-legend-dot" style="background:'+PUB_COLORS[i]+'"></span>'+esc(p.name.split(' ')[0])+'</th>';
   }).join('');
   var hdr1='<th rowspan="2" class="grp-td-hdr">گروه جایگاه</th>'+
     '<th colspan="'+np+'" class="metric-hdr">میانگین RPM</th>'+
     '<th colspan="'+np+'" class="metric-hdr">p50 RPM</th>'+
-    '<th colspan="'+np+'" class="metric-hdr">ترند</th>';
+    '<th rowspan="2" class="metric-hdr" style="min-width:110px">ترند (همه ناشران)</th>';
   var rows=keys.map(function(k){
     var avgCells=pubsData.map(function(pub){
       var g=pub.groups.find(function(x){return x.key===k;});
@@ -274,19 +316,20 @@ function buildCmpTable(pubsData){
       var g=pub.groups.find(function(x){return x.key===k;});
       return g?'<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td>':'<td class="na-td">—</td>';
     }).join('');
-    var trendCells=pubsData.map(function(pub){
+    var pubsMonthly=pubsData.map(function(pub){
       var g=pub.groups.find(function(x){return x.key===k;});
-      return g?'<td class="spark-td">'+miniSparkline(g.monthly,88,28)+'</td>':'<td class="na-td">—</td>';
-    }).join('');
-    return'<tr><td class="grp-td">'+esc(keyMap[k])+'</td>'+avgCells+p50Cells+trendCells+'</tr>';
+      return g?g.monthly:null;
+    });
+    var trendCell='<td class="spark-td">'+multiSparkline(pubsMonthly,110,28)+'</td>';
+    return'<tr><td class="grp-td">'+esc(keyMap[k])+'</td>'+avgCells+p50Cells+trendCell+'</tr>';
   }).join('');
-  return'<div style="overflow-x:auto"><table class="cmp-tbl">'+
-    '<thead><tr>'+hdr1+'</tr><tr>'+pubSubHdrs+pubSubHdrs+pubSubHdrs+'</tr></thead>'+
+  return pubLegend+'<div style="overflow-x:auto"><table class="cmp-tbl">'+
+    '<thead><tr>'+hdr1+'</tr><tr>'+pubSubHdrs+pubSubHdrs+'</tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
 }
 
 function buildDescTable(pubsData){
-  var fromISO=cmpFromISO,toISO=cmpToISO,df=cmpDescFilter;
+  var fromISO=filterFromISO,toISO=filterToISO,df=cmpDescFilter;
   if(pubsData.length===1){
     var stats=computePosStatsByDesc(pubsData[0].positions,fromISO,toISO,df);
     if(!stats.length)return'<div class="chart-empty">جایگاهی یافت نشد'+(df?' با این فیلتر':'')+'</div>';
@@ -441,64 +484,70 @@ function initTooltips(){
 
 // ── Filter bar ─────────────────────────────────────────────────
 // ── Jalali month-range picker ──────────────────────────────────
-var drpState={};  // id -> {fromISO,toISO,pickStep,viewY,cb}
+var drpState={};  // id -> {fromISO,toISO,pickStep,viewY,viewM,cb}
 function drpLabel(fromISO,toISO){
   var f=fromISO?isoToJ(fromISO):null;
   var t=toISO?isoToJ(toISO):null;
   if(f&&t)return toFa(f.y)+'/'+MONTHS[f.m-1]+' — '+toFa(t.y)+'/'+MONTHS[t.m-1];
-  if(f)return toFa(f.y)+'/'+MONTHS[f.m-1]+' — ...';
-  return 'انتخاب بازه';
+  if(f)return MONTHS[f.m-1]+' '+toFa(f.y)+' — انتخاب پایان';
+  return 'انتخاب بازه زمانی';
 }
 function buildDRP(id){
   return'<div class="drp-wrap" id="drp-wrap-'+id+'">'+
     '<button class="drp-btn" id="drp-btn-'+id+'" type="button">'+
-      '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="3" width="12" height="12" rx="2"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>'+
+      '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="3" width="12" height="12" rx="2"/><path d="M5 1v3M11 1v3M2 7h12"/></svg>'+
       '<span id="drp-lbl-'+id+'">انتخاب بازه</span>'+
-      '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 3.5L5 7l3-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
     '</button>'+
     '<div class="drp-cal drp-cal-hidden" id="drp-cal-'+id+'">'+
       '<div class="drp-year-nav">'+
-        '<button class="drp-nav-btn" id="drp-next-'+id+'">‹</button>'+
-        '<span class="drp-year-lbl" id="drp-year-'+id+'"></span>'+
-        '<button class="drp-nav-btn" id="drp-prev-'+id+'">›</button>'+
+        '<button class="drp-nav-btn" id="drp-pY-'+id+'" title="سال قبل">«</button>'+
+        '<button class="drp-nav-btn" id="drp-pM-'+id+'" title="ماه قبل">‹</button>'+
+        '<span class="drp-year-lbl" id="drp-head-'+id+'"></span>'+
+        '<button class="drp-nav-btn" id="drp-nM-'+id+'" title="ماه بعد">›</button>'+
+        '<button class="drp-nav-btn" id="drp-nY-'+id+'" title="سال بعد">»</button>'+
       '</div>'+
       '<div class="drp-months" id="drp-months-'+id+'"></div>'+
-      '<div class="drp-hint" id="drp-hint-'+id+'">ابتدای بازه را انتخاب کنید</div>'+
+      '<div class="drp-hint" id="drp-hint-'+id+'"></div>'+
+      '<div class="drp-reset-row"><button class="drp-reset-btn" id="drp-reset-'+id+'" type="button">پاک کردن</button></div>'+
     '</div>'+
   '</div>';
 }
 function drpRenderGrid(id){
   var st=drpState[id];
   if(!st)return;
-  var vy=st.viewY;
-  document.getElementById('drp-year-'+id).textContent=toFa(vy);
+  var vy=st.viewY,vm=st.viewM;
+  var headEl=document.getElementById('drp-head-'+id);
+  if(headEl)headEl.textContent=MONTHS[vm-1]+' '+toFa(vy);
   var fj=st.fromISO?isoToJ(st.fromISO):null;
   var tj=st.toISO?isoToJ(st.toISO):null;
-  var tempFj=st.tempFrom?isoToJ(st.tempFrom):null;
+  var fromYM=fj?fj.y*100+fj.m:null;
+  var toYM=tj?tj.y*100+tj.m:null;
+  // Show 12 months starting from viewY/viewM
   var html='';
-  MONTHS.forEach(function(mname,mi){
-    var ym1=vy*100+(mi+1);
-    var fromYM=fj?fj.y*100+fj.m:null;
-    var toYM=tj?tj.y*100+tj.m:null;
-    var tempYM=tempFj?tempFj.y*100+tempFj.m:null;
-    var isSel=(fromYM&&ym1===fromYM)||(toYM&&ym1===toYM)||(tempYM&&ym1===tempYM);
+  for(var i=0;i<12;i++){
+    var my=vy,mm=vm+i;while(mm>12){mm-=12;my++;}
+    var ym1=my*100+mm;
+    var isSel=(fromYM&&ym1===fromYM)||(toYM&&ym1===toYM);
     var isRange=fromYM&&toYM&&ym1>fromYM&&ym1<toYM;
     var cls='drp-m-btn'+(isSel?' selected':'')+(isRange?' in-range':'');
-    html+='<button class="'+cls+'" data-y="'+vy+'" data-m="'+(mi+1)+'" type="button">'+mname+'</button>';
-  });
+    html+='<button class="'+cls+'" data-y="'+my+'" data-m="'+mm+'" type="button">'+
+      '<span class="drp-m-name">'+MONTHS[mm-1]+'</span>'+
+      '<span class="drp-m-year">'+toFa(my)+'</span>'+
+    '</button>';
+  }
   document.getElementById('drp-months-'+id).innerHTML=html;
-  var hint=st.pickStep===1?'پایان بازه را انتخاب کنید':'ابتدای بازه را انتخاب کنید';
-  document.getElementById('drp-hint-'+id).textContent=hint;
+  var hintEl=document.getElementById('drp-hint-'+id);
+  if(hintEl)hintEl.textContent=st.pickStep===1?'ماه پایان بازه را انتخاب کنید':'ماه شروع بازه را انتخاب کنید';
   document.getElementById('drp-months-'+id).querySelectorAll('.drp-m-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
       var y=+btn.getAttribute('data-y'),m=+btn.getAttribute('data-m');
       var iso=jToISO(y,m,1);
       if(st.pickStep===0){
-        st.tempFrom=iso; st.fromISO=iso; st.toISO=null; st.pickStep=1;
+        st.fromISO=iso; st.toISO=null; st.pickStep=1;
       } else {
         if(iso<st.fromISO){st.toISO=st.fromISO;st.fromISO=iso;}
         else st.toISO=jToISO(y,m,29);
-        st.pickStep=0; st.tempFrom=null;
+        st.pickStep=0;
         drpClose(id);
         document.getElementById('drp-lbl-'+id).textContent=drpLabel(st.fromISO,st.toISO);
         if(st.cb)st.cb(st.fromISO,st.toISO);
@@ -522,7 +571,8 @@ function drpClose(id){
   if(btn)btn.classList.remove('open');
 }
 function wireDRP(id,fromISO,toISO,cb){
-  drpState[id]={fromISO:fromISO||null,toISO:toISO||null,pickStep:0,tempFrom:null,viewY:fromISO?isoToJ(fromISO).y:1404,cb:cb};
+  var startJ=fromISO?isoToJ(fromISO):{y:1404,m:1,d:1};
+  drpState[id]={fromISO:fromISO||null,toISO:toISO||null,pickStep:0,viewY:startJ.y,viewM:startJ.m,cb:cb};
   var lbl=document.getElementById('drp-lbl-'+id);
   if(lbl)lbl.textContent=drpLabel(fromISO,toISO);
   var btn=document.getElementById('drp-btn-'+id);
@@ -531,14 +581,23 @@ function wireDRP(id,fromISO,toISO,cb){
     if(cal&&!cal.classList.contains('drp-cal-hidden'))drpClose(id);
     else drpOpen(id);
   });
-  var prevBtn=document.getElementById('drp-prev-'+id);
-  var nextBtn=document.getElementById('drp-next-'+id);
-  if(prevBtn)prevBtn.addEventListener('click',function(e){e.stopPropagation();drpState[id].viewY--;drpRenderGrid(id);});
-  if(nextBtn)nextBtn.addEventListener('click',function(e){e.stopPropagation();drpState[id].viewY++;drpRenderGrid(id);});
-  document.addEventListener('click',function handler(e){
+  function navM(delta){drpState[id].viewM+=delta;while(drpState[id].viewM<1){drpState[id].viewM+=12;drpState[id].viewY--;}while(drpState[id].viewM>12){drpState[id].viewM-=12;drpState[id].viewY++;}drpRenderGrid(id);}
+  function navY(delta){drpState[id].viewY+=delta;drpRenderGrid(id);}
+  var el;
+  el=document.getElementById('drp-pM-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navM(-1);});
+  el=document.getElementById('drp-nM-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navM(1);});
+  el=document.getElementById('drp-pY-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navY(-1);});
+  el=document.getElementById('drp-nY-'+id);if(el)el.addEventListener('click',function(e){e.stopPropagation();navY(1);});
+  el=document.getElementById('drp-reset-'+id);
+  if(el)el.addEventListener('click',function(e){e.stopPropagation();
+    drpState[id].fromISO=null;drpState[id].toISO=null;drpState[id].pickStep=0;
+    document.getElementById('drp-lbl-'+id).textContent='انتخاب بازه زمانی';
+    drpClose(id);if(cb)cb(null,null);
+  });
+  document.addEventListener('click',function(e){
     var wrap=document.getElementById('drp-wrap-'+id);
-    if(wrap&&!wrap.contains(e.target)){drpClose(id);}
-  },{capture:true,once:false});
+    if(wrap&&!wrap.contains(e.target))drpClose(id);
+  });
 }
 function buildDateSelects(pfx,jy,jm,jd,minY,maxY){
   var yO='';for(var y=minY;y<=maxY;y++)yO+='<option value="'+y+'"'+(y===jy?' selected':'')+'>'+toFa(y)+'</option>';
@@ -565,7 +624,10 @@ function buildFilterBar(){
   '</div>';
 }
 function wireFilterBar(){
-  wireDRP('fbar',filterFromISO,filterToISO,function(f,t){filterFromISO=f;filterToISO=t;rerenderCharts();});
+  wireDRP('fbar',filterFromISO,filterToISO,function(f,t){
+    filterFromISO=f||dataMinISO;filterToISO=t||dataMaxISO;
+    rerenderCharts();refreshCmpTab();
+  });
   var togM=document.getElementById('tog-monthly'),togD=document.getElementById('tog-daily');
   if(togM)togM.addEventListener('click',function(){chartMode='monthly';togM.classList.add('active');togD.classList.remove('active');rerenderCharts();});
   if(togD)togD.addEventListener('click',function(){chartMode='daily';togD.classList.add('active');togM.classList.remove('active');rerenderCharts();});
@@ -699,12 +761,6 @@ function render(d){
   '</div>';
   html+='</div>';  // close .main
   // Comparison section (directly after main, no tab wrapper)
-  if(!cmpFromISO)cmpFromISO=jToISO(1404,1,1);
-  if(!cmpToISO&&dataMaxISO)cmpToISO=dataMaxISO;
-  var cfJ=cmpFromISO?isoToJ(cmpFromISO):{y:1404,m:1,d:1};
-  var ctJ=cmpToISO?isoToJ(cmpToISO):{y:1405,m:12,d:29};
-  var minYR=dataMinISO?isoToJ(dataMinISO).y:1404;
-  var maxYR=dataMaxISO?isoToJ(dataMaxISO).y:1405;
   html+='<div id="cmp-section"><div class="cmp-panel">';
   html+='<p class="sec-lbl">مقایسه جایگاه‌ها</p>';
   // Publisher row
@@ -716,13 +772,12 @@ function render(d){
     '</div>'+
     '<span class="cmp-hint" id="cmp-hint">یک ناشر دیگر اضافه کنید تا مقایسه شروع شود</span>'+
   '</div>';
-  // Controls: mode switcher + date filter
+  // Controls: mode switcher
   html+='<div class="cmp-controls">'+
     '<div class="cmp-mode-sw">'+
       '<button class="cmp-mode-btn'+(cmpMode==='group'?' active':'')+'" id="cmp-btn-group">گروه‌بندی</button>'+
       '<button class="cmp-mode-btn'+(cmpMode==='desc'?' active':'')+'" id="cmp-btn-desc">جایگاه‌ها</button>'+
     '</div>'+
-    buildDRP('cmp')+
   '</div>';
   // Desc filter bar (mode 2)
   html+='<div class="cmp-desc-bar" id="cmp-desc-bar" style="display:'+(cmpMode==='desc'?'flex':'none')+'">'+
@@ -797,8 +852,6 @@ function wireCmpTab(){
     if(descBar)descBar.style.display='flex';
     refreshCmpTab();
   });
-  // Date range picker
-  wireDRP('cmp',cmpFromISO,cmpToISO,function(f,t){cmpFromISO=f;cmpToISO=t;refreshCmpTab();});
   // Desc filter
   var descInp=document.getElementById('cmp-desc-inp');
   if(descInp)descInp.addEventListener('input',function(){cmpDescFilter=descInp.value;refreshCmpTab();});
@@ -830,10 +883,10 @@ function refreshCmpTab(){
   if(!cmpPubs.length){tableEl.innerHTML='';return;}
   if(cmpMode==='group'){
     if(cmpPubs.length>=2){
-      var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,groups:computeGroupStats(p.positions,cmpFromISO,cmpToISO)};});
+      var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,groups:computeGroupStats(p.positions,filterFromISO,filterToISO)};});
       tableEl.innerHTML=buildCmpTable(pubsData);
     }else{
-      var groups=computeGroupStats(cmpPubs[0].positions,cmpFromISO,cmpToISO);
+      var groups=computeGroupStats(cmpPubs[0].positions,filterFromISO,filterToISO);
       tableEl.innerHTML='<div class="sec-lbl" style="margin:0 0 16px">'+esc(cmpPubs[0].name)+'</div>'+buildGroupTable(groups);
     }
   }else{
