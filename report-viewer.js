@@ -98,49 +98,23 @@ function computePositionStats(){
 
 // ── Position Classification ────────────────────────────────────
 function classifyPos(desc,posType){
-  var d=(desc||'').toLowerCase().replace(/ی/g,'ي').replace(/ک/g,'ك');
   var t=(posType||'').toLowerCase().trim();
-  var fmt,fmtFa;
-  if(t==='notification'||/نوتي[فق]/.test(d)){fmt='notification';fmtFa='نوتیفیکیشن';}
-  else if(t==='pre_roll'||/pre.?roll|پري.?رول/.test(d)){fmt='pre_roll';fmtFa='پری‌رول';}
-  else if(t==='slider'||/اسلايدر/.test(d)){fmt='slider';fmtFa='اسلایدر';}
-  else if(t==='article-display-card'){fmt='native_video';fmtFa='همسان ویدیویی';}
-  else if(t==='article-display-sticky'){fmt='native_sticky';fmtFa='همسان استیکی';}
-  else if(t==='article-display'){fmt='native_display';fmtFa='همسان تصویری';}
-  else if(t==='article-text'){fmt='native_text';fmtFa='همسان متنی';}
-  else if(t==='banner-sticky'||t==='footer-sticky'){fmt='sticky';fmtFa='استیکی';}
-  else{fmt='banner';fmtFa='بنر';}
-  var isSb=/سايدبار|ساید.?بار|نوار جانبي|سمت چپ|سمت راست/.test(d);
-  var isHd=/هدر|header/.test(d);
-  var isTop=/ابتداي?.?مطلب|بالاي.?مطلب|بالاي.?خبر|زير.?ليد|زير.?عكس/.test(d);
-  var isMid=/ميان.?مطلب|بين.?مطلب|ميان.?متن/.test(d);
-  var isBot=/انتهاي?.?مطلب|انتهاي|پايين.?مطلب|زير.?تمامي|پايين.?ديدگاه|زير.?كامنت|انتهاي.?صفحه/.test(d);
-  var isHome=/صفحه.?اصلي|ص.?اصلي/.test(d);
-  var loc='',locFa='';
-  if(fmt==='sticky'){if(/پايين|footer/.test(d)){loc='bot';locFa='پایین';}else{loc='top';locFa='بالا';}}
-  else if(fmt!=='notification'&&fmt!=='pre_roll'&&fmt!=='slider'){
-    if(isHd){loc='header';locFa='هدر';}
-    else if(isSb){loc='sidebar';locFa='سایدبار';}
-    else if(isTop){loc='top';locFa='ابتدای مطلب';}
-    else if(isMid){loc='mid';locFa='میان مطلب';}
-    else if(isBot){loc='bot';locFa='انتهای مطلب';}
-    else if(isHome){loc='home';locFa='صفحه اصلی';}
-  }
-  var ord='';
-  var pw=[['اول','اولي'],['دوم','دومي'],['سوم','سومي'],['چهارم'],['پنجم'],['ششم'],['هفتم'],['هشتم']];
-  for(var n=0;n<pw.length;n++){if(pw[n].some(function(w){return d.indexOf(w)>=0;})){ord=String(n+1);break;}}
-  if(!ord){var mm=d.match(/\b([1-9])\b/);if(mm)ord=mm[1];}
-  var dev='';
-  if(/موبايل|mobile/.test(d))dev='mob';
-  else if(/\bamp\b/.test(d))dev='amp';
-  var key=fmt+(loc?'_'+loc:'')+(ord?'_'+ord:'')+(dev?'_'+dev:'');
-  var name=fmtFa+(locFa?' '+locFa:'')+(ord?' '+ord:'');
-  if(dev==='mob')name+=' (موبایل)';else if(dev==='amp')name+=' (AMP)';
-  return{key:key,name:name};
+  var map={
+    'notification':           {key:'notification',       name:'نوتیفیکیشن'},
+    'pre_roll':               {key:'pre_roll',           name:'پری‌رول'},
+    'slider':                 {key:'slider',             name:'اسلایدر'},
+    'banner-sticky':          {key:'sticky',             name:'استیکی'},
+    'footer-sticky':          {key:'sticky',             name:'استیکی'},
+    'article-display-card':   {key:'native_display_mid', name:'همسان تصویری میان مطلب'},
+    'article-display-sticky': {key:'native_sticky',      name:'همسان استیکی'},
+    'article-display':        {key:'native_display_end', name:'همسان تصویری انتهای مطلب'},
+    'article-text':           {key:'native_text_end',    name:'همسان متنی انتهای مطلب'},
+  };
+  return map[t]||{key:'banner',name:'بنر'};
 }
 
 function computeGroupStats(positions){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_video','native_display','native_text','banner'];
+  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
   var groups={};
   Object.keys(positions).forEach(function(posId){
     var pos=positions[posId];
@@ -197,7 +171,7 @@ function buildGroupTable(groups){
 }
 
 function buildCmpTable(pubsData){
-  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_video','native_display','native_text','banner'];
+  var ORDER=['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
   var keyMap={};
   pubsData.forEach(function(p){p.groups.forEach(function(g){if(!keyMap[g.key])keyMap[g.key]=g.name;});});
   var keys=Object.keys(keyMap).sort(function(a,b){

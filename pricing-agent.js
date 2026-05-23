@@ -46,71 +46,19 @@ const pct50 = arr => { if (!arr.length) return 0; const s = [...arr].sort((a,b)=
 // ── Position Classification ───────────────────────────────────────────────────
 // Returns { key, name } — canonical group for a position based on its description + type.
 function classifyPosition(desc, posType) {
-  // Normalize: unify Farsi ی→ي, ک→ك so regexes only need Arabic variants
-  const d = (desc || '').toLowerCase().replace(/ی/g, 'ي').replace(/ک/g, 'ك');
   const t = (posType || '').toLowerCase().trim();
-
-  // --- Primary format ---
-  let fmt, fmtFa;
-  if (t === 'notification' || /نوتي[فق]/.test(d))
-    { fmt = 'notification'; fmtFa = 'نوتیفیکیشن'; }
-  else if (t === 'pre_roll' || /pre.?roll|پري.?رول/.test(d))
-    { fmt = 'pre_roll'; fmtFa = 'پری‌رول'; }
-  else if (t === 'slider' || /اسلايدر/.test(d))
-    { fmt = 'slider'; fmtFa = 'اسلایدر'; }
-  else if (t === 'article-display-card')
-    { fmt = 'native_video'; fmtFa = 'همسان ویدیویی'; }
-  else if (t === 'article-display-sticky')
-    { fmt = 'native_sticky'; fmtFa = 'همسان استیکی'; }
-  else if (t === 'article-display')
-    { fmt = 'native_display'; fmtFa = 'همسان تصویری'; }
-  else if (t === 'article-text')
-    { fmt = 'native_text'; fmtFa = 'همسان متنی'; }
-  else if (t === 'banner-sticky' || t === 'footer-sticky')
-    { fmt = 'sticky'; fmtFa = 'استیکی'; }
-  else
-    { fmt = 'banner'; fmtFa = 'بنر'; }
-
-  // --- Location ---
-  const isSidebar  = /سايدبار|ساید.?بار|نوار جانبي|سمت چپ|سمت راست/.test(d);
-  const isHeader   = /هدر|header/.test(d);
-  const isTopArt   = /ابتداي?.?مطلب|بالاي.?مطلب|بالاي.?خبر|زير.?ليد|زير.?عكس/.test(d);
-  const isMidArt   = /ميان.?مطلب|بين.?مطلب|ميان.?متن/.test(d);
-  const isBotArt   = /انتهاي?.?مطلب|انتهاي|پايين.?مطلب|زير.?تمامي|پايين.?ديدگاه|زير.?كامنت|انتهاي.?صفحه/.test(d);
-  const isHomepage = /صفحه.?اصلي|ص.?اصلي/.test(d);
-
-  let loc = '', locFa = '';
-  if (fmt === 'sticky') {
-    if (/پايين|footer|bottom/.test(d)) { loc = 'bot'; locFa = 'پایین'; }
-    else { loc = 'top'; locFa = 'بالا'; }
-  } else if (fmt !== 'notification' && fmt !== 'pre_roll' && fmt !== 'slider') {
-    if (isHeader)        { loc = 'header';  locFa = 'هدر'; }
-    else if (isSidebar)  { loc = 'sidebar'; locFa = 'سایدبار'; }
-    else if (isTopArt)   { loc = 'top';     locFa = 'ابتدای مطلب'; }
-    else if (isMidArt)   { loc = 'mid';     locFa = 'میان مطلب'; }
-    else if (isBotArt)   { loc = 'bot';     locFa = 'انتهای مطلب'; }
-    else if (isHomepage) { loc = 'home';    locFa = 'صفحه اصلی'; }
-  }
-
-  // --- Ordinal (after normalization ی→ي, so only need arabic forms) ---
-  let ord = '';
-  const persWords = [['اول','اولي'],['دوم','دومي'],['سوم','سومي'],['چهارم'],['پنجم'],['ششم'],['هفتم'],['هشتم']];
-  for (let n = 0; n < persWords.length; n++) {
-    if (persWords[n].some(w => d.includes(w))) { ord = String(n + 1); break; }
-  }
-  if (!ord) { const m = d.match(/\b([1-9])\b/); if (m) ord = m[1]; }
-
-  // --- Device ---
-  let dev = '';
-  if (/موبايل|mobile/.test(d)) dev = 'mob';
-  else if (/\bamp\b/.test(d)) dev = 'amp';
-
-  const key  = fmt + (loc ? '_' + loc : '') + (ord ? '_' + ord : '') + (dev ? '_' + dev : '');
-  let   name = fmtFa + (locFa ? ' ' + locFa : '') + (ord ? ' ' + ord : '');
-  if (dev === 'mob') name += ' (موبایل)';
-  else if (dev === 'amp') name += ' (AMP)';
-
-  return { key, name };
+  const map = {
+    'notification':           { key: 'notification',       name: 'نوتیفیکیشن' },
+    'pre_roll':               { key: 'pre_roll',           name: 'پری‌رول' },
+    'slider':                 { key: 'slider',             name: 'اسلایدر' },
+    'banner-sticky':          { key: 'sticky',             name: 'استیکی' },
+    'footer-sticky':          { key: 'sticky',             name: 'استیکی' },
+    'article-display-card':   { key: 'native_display_mid', name: 'همسان تصویری میان مطلب' },
+    'article-display-sticky': { key: 'native_sticky',      name: 'همسان استیکی' },
+    'article-display':        { key: 'native_display_end', name: 'همسان تصویری انتهای مطلب' },
+    'article-text':           { key: 'native_text_end',    name: 'همسان متنی انتهای مطلب' },
+  };
+  return map[t] || { key: 'banner', name: 'بنر' };
 }
 
 // ── Compute canonical group stats for a publisher's positions ─────────────────
@@ -128,7 +76,7 @@ function computeGroupStats(positions) {
     groups[key].posCount++;
   }
 
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_video','native_display','native_text','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
   const result = [];
   for (const [key, g] of Object.entries(groups)) {
     if (!g.allRows.length) continue;
@@ -176,7 +124,7 @@ function renderGroupTable(groups) {
 
 // ── Render multi-publisher comparison table ───────────────────────────────────
 function renderCompareTable(pubsData) {
-  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_video','native_display','native_text','banner'];
+  const ORDER = ['notification','pre_roll','slider','sticky','native_sticky','native_display_mid','native_display_end','native_text_end','banner'];
   const keyMap = new Map(); // key → name
   for (const pub of pubsData) {
     for (const g of pub.groups) {
