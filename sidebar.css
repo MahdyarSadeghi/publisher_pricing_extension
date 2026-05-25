@@ -222,9 +222,9 @@ header {
   text-align: center;
 }
 
-.slot-reel-0 { animation: reel 1.0s cubic-bezier(.22,1,.36,1) infinite; }
-.slot-reel-1 { animation: reel 1.25s cubic-bezier(.22,1,.36,1) infinite; }
-.slot-reel-2 { animation: reel 1.5s cubic-bezier(.22,1,.36,1) infinite; }
+.slot-reel-0 { animation: reel 2.4s cubic-bezier(.22,1,.36,1) infinite; }
+.slot-reel-1 { animation: reel 3.0s cubic-bezier(.22,1,.36,1) infinite; }
+.slot-reel-2 { animation: reel 3.6s cubic-bezier(.22,1,.36,1) infinite; }
 
 @keyframes reel {
   0%   { transform: translateY(0); }
