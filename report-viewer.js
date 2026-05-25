@@ -32,6 +32,7 @@ var cmpDescFilter='';
 var cmpSelectedKey=null; // which row is selected for trend chart
 var cmpExcludedDates=new Set(); // dates excluded from trend chart
 var cmpTrendStore=null; // stores chart data for hover/click handlers
+var cmpTrendChartMode='daily'; // 'daily' | 'monthly' for comparison trend chart
 
 // ── Data helpers ───────────────────────────────────────────────
 function getFullRows(posId){
@@ -269,6 +270,21 @@ function computeDescDailyForKey(positions,descKey,fromISO,toISO){
     .map(function(d){return{date:d,rpm:by[d].c/by[d].p};});
 }
 
+function aggregateDailyToMonthly(daily){
+  var acc={};
+  daily.forEach(function(pt){
+    var j=isoToJ(pt.date);
+    var k=j.y+'/'+p2(j.m);
+    if(!acc[k]){acc[k]={rpms:[],first:pt.date};}
+    acc[k].rpms.push(pt.rpm);
+  });
+  return Object.keys(acc).sort().map(function(k){
+    var m=acc[k];
+    var sorted=m.rpms.slice().sort(function(a,b){return a-b;});
+    return{date:m.first,rpm:sorted[Math.floor(sorted.length*0.5)]};
+  });
+}
+
 function buildMultiLineSvg(series,W,H){
   var hasSeries=series.some(function(s){return s.daily&&s.daily.length>=2;});
   if(!hasSeries)return'<div class="chart-empty">داده کافی وجود ندارد</div>';
@@ -493,25 +509,31 @@ function renderCmpTrend(key,label,mode){
     var daily=mode==='group'?
       computeGroupDailyForKey(p.positions,key,filterFromISO,filterToISO):
       computeDescDailyForKey(p.positions,key,filterFromISO,filterToISO);
-    return{name:p.name,color:PUB_COLORS[i],daily:daily};
+    var chartData=cmpTrendChartMode==='monthly'?aggregateDailyToMonthly(daily):daily;
+    return{name:p.name,color:PUB_COLORS[i],daily:chartData};
   });
+  var toggleHtml='<div class="cmp-trend-toggle">'+
+    '<button class="cmp-tv-btn'+(cmpTrendChartMode==='daily'?' active':'')+'" id="cmp-tv-daily">روزانه</button>'+
+    '<button class="cmp-tv-btn'+(cmpTrendChartMode==='monthly'?' active':'')+'" id="cmp-tv-monthly">ماهانه</button>'+
+  '</div>';
   var legendHtml='<div class="cmp-trend-legend">'+series.map(function(s){
     return'<span><span class="cmp2-dot-sm" style="background:'+s.color+'"></span>'+esc(s.name)+'</span>';
   }).join('')+'</div>';
   var exclBar=cmpExcludedDates.size>0?
-    '<div class="cmp-excl-bar"><button class="cmp-excl-reset" id="cmp-excl-reset">↺ پاک کردن استثناءها ('+toFa(cmpExcludedDates.size)+')</button><span class="cmp-excl-hint">کلیک روی نقطه = حذف/اضافه از نمودار</span></div>':
+    '<div class="cmp-excl-bar"><button class="cmp-excl-reset" id="cmp-excl-reset">↺ پاک کردن استثناءها ('+toFa(cmpExcludedDates.size)+')</button><span class="cmp-excl-hint">کلیک روی نقطه = حذف از نمودار</span></div>':
     '<div class="cmp-excl-bar"><span class="cmp-excl-hint">کلیک روی نقطه = حذف از نمودار برای حذف اوتلایر</span></div>';
   var titleEl=document.getElementById('cmp-trend-title');
   var chartEl=document.getElementById('cmp-trend-chart');
   var panel=document.getElementById('cmp-trend-panel');
-  if(titleEl)titleEl.textContent='ترند روزانه: '+label;
+  if(titleEl)titleEl.textContent='ترند: '+label;
   if(chartEl){
-    chartEl.innerHTML=legendHtml+buildMultiLineSvg(series,1200,220)+exclBar;
+    chartEl.innerHTML=toggleHtml+legendHtml+buildMultiLineSvg(series,1200,300)+exclBar;
+    var tvDaily=document.getElementById('cmp-tv-daily');
+    var tvMonthly=document.getElementById('cmp-tv-monthly');
+    if(tvDaily)tvDaily.addEventListener('click',function(){cmpTrendChartMode='daily';cmpExcludedDates.clear();renderCmpTrend(key,label,mode);});
+    if(tvMonthly)tvMonthly.addEventListener('click',function(){cmpTrendChartMode='monthly';cmpExcludedDates.clear();renderCmpTrend(key,label,mode);});
     var resetBtn=document.getElementById('cmp-excl-reset');
-    if(resetBtn)resetBtn.addEventListener('click',function(){
-      cmpExcludedDates.clear();
-      renderCmpTrend(key,label,mode);
-    });
+    if(resetBtn)resetBtn.addEventListener('click',function(){cmpExcludedDates.clear();renderCmpTrend(key,label,mode);});
     initCmpTrend();
   }
   if(panel){
@@ -921,9 +943,20 @@ function drpRenderGrid(id){
 }
 function drpOpen(id){
   var cal=document.getElementById('drp-cal-'+id);
-  if(!cal)return;
+  var btn=document.getElementById('drp-btn-'+id);
+  if(!cal||!btn)return;
+  // Inside an overflow-clipping modal: use fixed positioning to escape clipping
+  if(btn.closest&&btn.closest('.cmp-modal')){
+    cal.style.position='fixed';
+    var rect=btn.getBoundingClientRect();
+    cal.style.top=(rect.bottom+6)+'px';
+    cal.style.right=(window.innerWidth-rect.right)+'px';
+    cal.style.left='auto';
+  }else{
+    cal.style.position='';cal.style.top='';cal.style.right='';cal.style.left='';
+  }
   cal.classList.remove('drp-cal-hidden');
-  document.getElementById('drp-btn-'+id).classList.add('open');
+  btn.classList.add('open');
   drpRenderGrid(id);
 }
 function drpClose(id){
