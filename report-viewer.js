@@ -372,13 +372,13 @@ function buildMultiLineSvg(series,W,H){
   var refLines='';
   if(combinedP50!=null&&combinedP50<=yMax){
     var p50Y=yFor(combinedP50);
-    refLines+='<line x1="'+pL+'" y1="'+p50Y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+p50Y.toFixed(1)+'" stroke="#FED049" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.75"/>';
-    refLines+='<text x="'+(W-pR+4)+'" y="'+(p50Y+4).toFixed(1)+'" text-anchor="start" font-size="9" font-weight="600" fill="#FED049" fill-opacity="0.9">P50</text>';
+    refLines+='<line x1="'+pL+'" y1="'+p50Y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+p50Y.toFixed(1)+'" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.8"/>';
+    refLines+='<text x="'+(W-pR+4)+'" y="'+(p50Y+4).toFixed(1)+'" text-anchor="start" font-size="9" font-weight="600" fill="#a855f7" fill-opacity="0.9">P50</text>';
   }
   if(combinedMean!=null&&combinedMean<=yMax){
     var meanY=yFor(combinedMean);
-    refLines+='<line x1="'+pL+'" y1="'+meanY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+meanY.toFixed(1)+'" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.75"/>';
-    refLines+='<text x="'+(W-pR+4)+'" y="'+(meanY+4).toFixed(1)+'" text-anchor="start" font-size="9" font-weight="600" fill="#60a5fa" fill-opacity="0.9">میانگین</text>';
+    refLines+='<line x1="'+pL+'" y1="'+meanY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+meanY.toFixed(1)+'" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.8"/>';
+    refLines+='<text x="'+(W-pR+4)+'" y="'+(meanY+4).toFixed(1)+'" text-anchor="start" font-size="9" font-weight="600" fill="#f97316" fill-opacity="0.9">میانگین</text>';
   }
   var cLine='<line class="cm-cline" x1="'+xS+'" y1="'+(pT-4)+'" x2="'+xS+'" y2="'+(pT+cH+4)+'" stroke="currentColor" stroke-opacity="0.25" stroke-width="1" stroke-dasharray="3,2" style="display:none"/>';
   var cid='cm'+Math.random().toString(36).slice(2,8);
@@ -545,7 +545,7 @@ function renderCmpTrend(key,label,mode){
   var panel=document.getElementById('cmp-trend-panel');
   if(titleEl)titleEl.textContent='ترند: '+label;
   if(chartEl){
-    chartEl.innerHTML=toggleHtml+legendHtml+buildMultiLineSvg(series,1200,360)+exclBar;
+    chartEl.innerHTML=toggleHtml+legendHtml+buildMultiLineSvg(series,1400,400)+exclBar;
     var tvDaily=document.getElementById('cmp-tv-daily');
     var tvMonthly=document.getElementById('cmp-tv-monthly');
     if(tvDaily)tvDaily.addEventListener('click',function(){cmpTrendChartMode='daily';cmpExcludedDates.clear();renderCmpTrend(key,label,mode);});
