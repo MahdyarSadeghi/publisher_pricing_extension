@@ -29,6 +29,7 @@ var allPubData=null;
 var cmpPubs=[];        // [{pubId, name, positions}]
 var cmpMode='group';   // 'group' | 'desc'
 var cmpDescFilter='';
+var cmpSelectedKey=null; // which row is selected for trend chart
 
 // ── Data helpers ───────────────────────────────────────────────
 function getFullRows(posId){
@@ -234,6 +235,370 @@ function computePosStatsByDesc(positions,fromISO,toISO,descFilter){
 
 var PUB_COLORS=['#FED049','#60a5fa','#34d399','#f87171'];
 
+function computeGroupDailyForKey(positions,groupKey,fromISO,toISO){
+  var from=fromISO||jToISO(1404,1,1);
+  var to=toISO||'9999-12-31';
+  var by={};
+  Object.keys(positions).forEach(function(posId){
+    var pos=positions[posId];
+    var g=classifyPos(pos.type||pos.positionType,pos.desc||pos.description);
+    if(g.key!==groupKey)return;
+    (pos.rows||[]).filter(function(r){return r[0]>=from&&r[0]<=to;}).forEach(function(r){
+      if(!by[r[0]])by[r[0]]={c:0,p:0};
+      by[r[0]].c+=r[1];by[r[0]].p=Math.max(by[r[0]].p,r[2]);
+    });
+  });
+  return Object.keys(by).sort().filter(function(d){return by[d].p>0;})
+    .map(function(d){return{date:d,rpm:by[d].c/by[d].p};});
+}
+
+function computeDescDailyForKey(positions,descKey,fromISO,toISO){
+  var from=fromISO||jToISO(1404,1,1);
+  var to=toISO||'9999-12-31';
+  var by={};
+  Object.values(positions).forEach(function(pos){
+    if((pos.desc||pos.description||'')!==descKey)return;
+    (pos.rows||[]).filter(function(r){return r[0]>=from&&r[0]<=to;}).forEach(function(r){
+      if(!by[r[0]])by[r[0]]={c:0,p:0};
+      by[r[0]].c+=r[1];by[r[0]].p=Math.max(by[r[0]].p,r[2]);
+    });
+  });
+  return Object.keys(by).sort().filter(function(d){return by[d].p>0;})
+    .map(function(d){return{date:d,rpm:by[d].c/by[d].p};});
+}
+
+function buildMultiLineSvg(series,W,H){
+  var hasSeries=series.some(function(s){return s.daily&&s.daily.length>=2;});
+  if(!hasSeries)return'<div class="chart-empty">داده کافی وجود ندارد</div>';
+  var allDates=[];
+  series.forEach(function(s){(s.daily||[]).forEach(function(d){if(allDates.indexOf(d.date)<0)allDates.push(d.date);});});
+  allDates.sort();
+  var allVals=[];
+  series.forEach(function(s){(s.daily||[]).forEach(function(d){allVals.push(d.rpm);});});
+  var mn=0,mx=Math.max.apply(null,allVals),yMax=Math.max(mx*1.12,0.01);
+  var pL=60,pR=20,pT=18,pB=44;
+  var cW=W-pL-pR,cH=H-pT-pB;
+  var n=allDates.length;
+  var xPad=16;
+  var xS=pL+xPad,xE=W-pR-xPad;
+  function xFor(idx){return n===1?(xS+xE)/2:xS+(idx/(n-1))*(xE-xS);}
+  function yFor(v){return pT+(1-v/yMax)*cH;}
+  // grid
+  var grid='',yLbls='';
+  for(var gi=0;gi<=4;gi++){
+    var gt=gi/4,gyy=pT+(1-gt)*cH,gv=gt*yMax;
+    grid+='<line x1="'+pL+'" y1="'+gyy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gyy.toFixed(1)+'" stroke="currentColor" stroke-opacity="0.06" stroke-width="1"/>';
+    yLbls+='<text x="'+(pL-6)+'" y="'+(gyy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="currentColor" fill-opacity="0.45">'+toFa(gv.toFixed(1))+'</text>';
+  }
+  // x labels
+  var xLbls='',step=n<=12?1:n<=30?2:Math.ceil(n/12);
+  allDates.forEach(function(date,i){
+    if(i%step!==0&&i!==n-1)return;
+    var j=isoToJ(date);
+    var lbl=toFa(j.m+'/'+j.d);
+    var x=xFor(i);
+    xLbls+='<text x="'+x.toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity="0.5">'+lbl+'</text>';
+  });
+  // lines
+  var lines='';
+  series.forEach(function(s){
+    if(!s.daily||s.daily.length<2)return;
+    var byDate={};
+    s.daily.forEach(function(d){byDate[d.date]=d.rpm;});
+    var pts=[];
+    allDates.forEach(function(date,i){
+      if(byDate[date]!=null)pts.push({x:xFor(i),y:yFor(byDate[date])});
+    });
+    if(pts.length<2)return;
+    var path=pts.map(function(p,i){return(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1);}).join(' ');
+    lines+='<path d="'+path+'" fill="none" stroke="'+s.color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+  });
+  return'<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'+
+    grid+lines+yLbls+xLbls+'</svg>';
+}
+
+function buildCmpTableV2(pubsStats,mode,selectedKey){
+  if(!pubsStats||!pubsStats.length)return'<div class="chart-empty">داده‌ای موجود نیست</div>';
+  var np=pubsStats.length;
+  // collect all row keys
+  var keyMap={};
+  if(mode==='group'){
+    pubsStats.forEach(function(p){(p.groups||[]).forEach(function(g){if(!keyMap[g.key])keyMap[g.key]=g.name;});});
+  }else{
+    pubsStats.forEach(function(p){(p.descs||[]).forEach(function(g){if(!keyMap[g.desc])keyMap[g.desc]=g;});});
+  }
+  var keys=Object.keys(keyMap);
+  // sort by max p50 desc
+  keys.sort(function(a,b){
+    var aV=Math.max.apply(null,pubsStats.map(function(p){
+      var arr=mode==='group'?(p.groups||[]):(p.descs||[]);
+      var item=arr.find(function(x){return mode==='group'?x.key===a:x.desc===a;});
+      return item?(item.p50||0):0;
+    }));
+    var bV=Math.max.apply(null,pubsStats.map(function(p){
+      var arr=mode==='group'?(p.groups||[]):(p.descs||[]);
+      var item=arr.find(function(x){return mode==='group'?x.key===b:x.desc===b;});
+      return item?(item.p50||0):0;
+    }));
+    return bV-aV;
+  });
+  // header row 1
+  var pubSubHdrs=pubsStats.map(function(p,i){
+    return'<th class="cmp2-sub-hdr"><span class="cmp2-dot" style="background:'+PUB_COLORS[i]+'"></span>'+esc(p.name.split(' ')[0])+'</th>';
+  }).join('');
+  var hdr1='<tr>'+
+    '<th rowspan="2" class="cmp2-row-hdr">'+(mode==='group'?'گروه جایگاه':'جایگاه')+'</th>'+
+    '<th colspan="'+np+'" class="cmp2-metric-hdr">P50 RPM</th>'+
+    '<th colspan="'+np+'" class="cmp2-metric-hdr">میانگین RPM</th>'+
+  '</tr>';
+  var hdr2='<tr>'+pubSubHdrs+pubSubHdrs+'</tr>';
+  // data rows
+  var rows=keys.map(function(k){
+    var label,groupTag='';
+    if(mode==='group'){
+      label=keyMap[k];
+    }else{
+      var descItem=keyMap[k];
+      label=descItem.desc||k;
+      groupTag='<span class="cmp2-grp-tag">'+esc(descItem.groupName||'')+'</span> ';
+    }
+    var isSel=selectedKey===k;
+    var p50Cells=pubsStats.map(function(p){
+      var arr=mode==='group'?(p.groups||[]):(p.descs||[]);
+      var item=arr.find(function(x){return mode==='group'?x.key===k:x.desc===k;});
+      return item&&item.p50!=null?'<td class="cmp2-val">'+fmtRpm(item.p50)+'</td>':'<td class="cmp2-na">—</td>';
+    }).join('');
+    var avgCells=pubsStats.map(function(p){
+      var arr=mode==='group'?(p.groups||[]):(p.descs||[]);
+      var item=arr.find(function(x){return mode==='group'?x.key===k:x.desc===k;});
+      return item&&item.avg!=null?'<td class="cmp2-val">'+fmtRpm(item.avg)+'</td>':'<td class="cmp2-na">—</td>';
+    }).join('');
+    return'<tr class="cmp2-row'+(isSel?' cmp2-sel':'')+'" data-key="'+esc(k)+'" data-label="'+esc(label)+'">'+
+      '<td class="cmp2-label">'+groupTag+esc(label)+'</td>'+
+      p50Cells+avgCells+
+    '</tr>';
+  }).join('');
+  // summary row
+  var totalP50Cells=pubsStats.map(function(p){
+    return p.totalP50!=null?'<td class="cmp2-val"><strong>'+fmtRpm(p.totalP50)+'</strong></td>':'<td class="cmp2-na">—</td>';
+  }).join('');
+  var totalAvgCells=pubsStats.map(function(p){
+    return p.totalAvg!=null?'<td class="cmp2-val">'+fmtRpm(p.totalAvg)+'</td>':'<td class="cmp2-na">—</td>';
+  }).join('');
+  var totalRow='<tr class="cmp2-total-row">'+
+    '<td class="cmp2-label">RPM کل سایت</td>'+
+    totalP50Cells+totalAvgCells+
+  '</tr>';
+  return'<div style="overflow-x:auto"><table class="cmp2-tbl">'+
+    '<thead>'+hdr1+hdr2+'</thead>'+
+    '<tbody>'+rows+totalRow+'</tbody>'+
+  '</table></div>';
+}
+
+function renderCmpTrend(key,label,mode){
+  var series=cmpPubs.map(function(p,i){
+    var daily=mode==='group'?
+      computeGroupDailyForKey(p.positions,key,filterFromISO,filterToISO):
+      computeDescDailyForKey(p.positions,key,filterFromISO,filterToISO);
+    return{name:p.name,color:PUB_COLORS[i],daily:daily};
+  });
+  var legendHtml='<div class="cmp-trend-legend">'+series.map(function(s){
+    return'<span><span class="cmp2-dot-sm" style="background:'+s.color+'"></span>'+esc(s.name)+'</span>';
+  }).join('')+'</div>';
+  var chartHtml=legendHtml+buildMultiLineSvg(series,1200,220);
+  var titleEl=document.getElementById('cmp-trend-title');
+  var chartEl=document.getElementById('cmp-trend-chart');
+  var panel=document.getElementById('cmp-trend-panel');
+  if(titleEl)titleEl.textContent='ترند روزانه: '+label;
+  if(chartEl)chartEl.innerHTML=chartHtml;
+  if(panel){
+    panel.style.display='';
+    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+}
+
+function wireCmpSection(){
+  // Toggle panel
+  var toggle=document.getElementById('cmp-toggle');
+  var section=document.getElementById('cmp-section');
+  if(toggle&&section){
+    toggle.addEventListener('click',function(){
+      var hidden=section.style.display==='none';
+      section.style.display=hidden?'':'none';
+      toggle.classList.toggle('active',hidden);
+    });
+  }
+  // Close button
+  var closeBtn=document.getElementById('cmp-close');
+  if(closeBtn&&section){
+    closeBtn.addEventListener('click',function(){
+      section.style.display='none';
+      if(toggle)toggle.classList.remove('active');
+    });
+  }
+  // Add publisher button
+  var addBtn=document.getElementById('cmp-add-btn');
+  var searchRow=document.getElementById('cmp-search-row');
+  var inp=document.getElementById('cmp-inp');
+  var dd=document.getElementById('cmp-dd');
+  if(addBtn&&searchRow){
+    addBtn.addEventListener('click',function(){
+      searchRow.style.display='';
+      if(inp)inp.focus();
+    });
+  }
+  // Publisher search
+  if(inp&&dd){
+    function getSugs(q){
+      if(!allPubData||!q||q.length<2)return[];
+      var ql=q.toLowerCase();var res=[];
+      Object.keys(allPubData).forEach(function(pubId){
+        if(cmpPubs.find(function(p){return p.pubId===pubId;}))return;
+        var pub=allPubData[pubId];
+        if((pub.publisher_name||'').toLowerCase().indexOf(ql)>=0||pubId.toLowerCase().indexOf(ql)>=0)
+          res.push({pubId:pubId,name:pub.publisher_name||pubId});
+      });
+      return res.slice(0,8);
+    }
+    function renderDD(q){
+      var items=getSugs(q);
+      if(!items.length){dd.style.display='none';return;}
+      dd.innerHTML=items.map(function(it){
+        return'<div class="cmp-dd-item" data-pubid="'+it.pubId+'" data-name="'+esc(it.name)+'">'+
+          '<span class="cmp-dd-name">'+esc(it.name)+'</span></div>';
+      }).join('');
+      dd.querySelectorAll('.cmp-dd-item').forEach(function(item){
+        item.addEventListener('mousedown',function(e){
+          e.preventDefault();
+          var pubId=item.getAttribute('data-pubid');
+          var name=item.getAttribute('data-name');
+          var pub=allPubData[pubId];
+          if(pub&&cmpPubs.length<3&&!cmpPubs.find(function(p){return p.pubId===pubId;})){
+            cmpPubs.push({pubId:pubId,name:name,positions:pub.positions});
+          }
+          if(searchRow)searchRow.style.display='none';
+          inp.value='';dd.style.display='none';
+          refreshCmpSection();
+        });
+      });
+      dd.style.display='block';
+    }
+    inp.addEventListener('input',function(){renderDD(inp.value);});
+    inp.addEventListener('focus',function(){if(inp.value)renderDD(inp.value);});
+    inp.addEventListener('blur',function(){setTimeout(function(){if(dd)dd.style.display='none';},160);});
+  }
+  // Mode switcher
+  var btnGrp=document.getElementById('cmp-btn-group');
+  var btnDesc=document.getElementById('cmp-btn-desc');
+  var descBar=document.getElementById('cmp-desc-bar');
+  if(btnGrp)btnGrp.addEventListener('click',function(){
+    cmpMode='group';btnGrp.classList.add('active');if(btnDesc)btnDesc.classList.remove('active');
+    if(descBar)descBar.style.display='none';
+    cmpSelectedKey=null;
+    var tp=document.getElementById('cmp-trend-panel');if(tp)tp.style.display='none';
+    refreshCmpSection();
+  });
+  if(btnDesc)btnDesc.addEventListener('click',function(){
+    cmpMode='desc';btnDesc.classList.add('active');if(btnGrp)btnGrp.classList.remove('active');
+    if(descBar)descBar.style.display='';
+    cmpSelectedKey=null;
+    var tp=document.getElementById('cmp-trend-panel');if(tp)tp.style.display='none';
+    refreshCmpSection();
+  });
+  // Desc filter
+  var descInp=document.getElementById('cmp-desc-inp');
+  if(descInp)descInp.addEventListener('input',function(){cmpDescFilter=descInp.value;refreshCmpSection();});
+  // Trend close
+  var trendClose=document.getElementById('cmp-trend-close');
+  if(trendClose){
+    trendClose.addEventListener('click',function(){
+      var tp=document.getElementById('cmp-trend-panel');
+      if(tp)tp.style.display='none';
+      cmpSelectedKey=null;
+      document.querySelectorAll('.cmp2-row.cmp2-sel').forEach(function(r){r.classList.remove('cmp2-sel');});
+    });
+  }
+  // Date range picker for comparison section
+  wireDRP('cmp',filterFromISO,filterToISO,function(f,t){
+    filterFromISO=f;filterToISO=t;
+    rerenderCharts();
+    refreshCmpSection();
+  });
+}
+
+function refreshCmpSection(){
+  var chipsEl=document.getElementById('cmp-chips');
+  var addBtn=document.getElementById('cmp-add-btn');
+  var emptyEl=document.getElementById('cmp-empty');
+  var tableEl=document.getElementById('cmp-table-wrap');
+  if(!chipsEl)return;
+  // Render chips
+  chipsEl.innerHTML=cmpPubs.map(function(p,i){
+    return'<div class="cmp2-chip'+(i===0?' own':'')+'">'+
+      '<span class="cmp2-dot-sm" style="background:'+PUB_COLORS[i]+'"></span>'+
+      '<span>'+esc(p.name)+'</span>'+
+      '<button class="cmp2-chip-x" data-pubid="'+esc(p.pubId)+'">×</button>'+
+    '</div>';
+  }).join('');
+  chipsEl.querySelectorAll('.cmp2-chip-x').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var id=btn.getAttribute('data-pubid');
+      cmpPubs=cmpPubs.filter(function(p){return p.pubId!==id;});
+      if(cmpPubs.length===0){cmpSelectedKey=null;var tp=document.getElementById('cmp-trend-panel');if(tp)tp.style.display='none';}
+      refreshCmpSection();
+    });
+  });
+  // Show/hide add button
+  if(addBtn)addBtn.style.display=cmpPubs.length>=3?'none':'';
+  // Empty state
+  if(emptyEl)emptyEl.style.display=cmpPubs.length?'none':'';
+  if(!tableEl)return;
+  if(!cmpPubs.length){tableEl.innerHTML='';return;}
+  // Compute stats
+  var pubsStats=cmpPubs.map(function(p){
+    if(cmpMode==='group'){
+      var r=computeGroupStats(p.positions,filterFromISO,filterToISO);
+      return{pubId:p.pubId,name:p.name,groups:r.groups,totalP50:r.totalP50,totalAvg:r.totalAvg};
+    }else{
+      var descs=computePosStatsByDesc(p.positions,filterFromISO,filterToISO,cmpDescFilter);
+      var r2=computeGroupStats(p.positions,filterFromISO,filterToISO);
+      return{pubId:p.pubId,name:p.name,descs:descs,totalP50:r2.totalP50,totalAvg:r2.totalAvg};
+    }
+  });
+  tableEl.innerHTML=buildCmpTableV2(pubsStats,cmpMode,cmpSelectedKey);
+  // Wire row clicks
+  tableEl.querySelectorAll('.cmp2-row').forEach(function(row){
+    row.addEventListener('click',function(){
+      var key=row.getAttribute('data-key');
+      var label=row.getAttribute('data-label');
+      if(cmpSelectedKey===key){
+        // deselect
+        cmpSelectedKey=null;
+        row.classList.remove('cmp2-sel');
+        var tp=document.getElementById('cmp-trend-panel');if(tp)tp.style.display='none';
+      }else{
+        cmpSelectedKey=key;
+        tableEl.querySelectorAll('.cmp2-row').forEach(function(r){r.classList.remove('cmp2-sel');});
+        row.classList.add('cmp2-sel');
+        renderCmpTrend(key,label,cmpMode);
+      }
+    });
+  });
+  // Re-render trend if key still valid
+  if(cmpSelectedKey){
+    var allKeys=[];
+    tableEl.querySelectorAll('.cmp2-row[data-key]').forEach(function(r){allKeys.push(r.getAttribute('data-key'));});
+    if(allKeys.indexOf(cmpSelectedKey)>=0){
+      var selRow=tableEl.querySelector('.cmp2-row[data-key="'+cmpSelectedKey+'"]');
+      var label=selRow?selRow.getAttribute('data-label'):cmpSelectedKey;
+      renderCmpTrend(cmpSelectedKey,label,cmpMode);
+    }else{
+      cmpSelectedKey=null;
+      var tp=document.getElementById('cmp-trend-panel');if(tp)tp.style.display='none';
+    }
+  }
+}
+
 function miniSparkline(monthly,W,H,color){
   if(!monthly||monthly.length<2)return'<span style="color:var(--muted);font-size:10px">—</span>';
   var vals=monthly.map(function(m){return m.rpm;});
@@ -271,130 +636,6 @@ function multiSparkline(pubsMonthly,W,H){
     lines+='<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
   });
   return'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block">'+lines+'</svg>';
-}
-
-function buildGroupTable(statsResult){
-  var groups=Array.isArray(statsResult)?statsResult:(statsResult.groups||[]);
-  var siteTotals=Array.isArray(statsResult)?null:statsResult;
-  if(!groups.length)return'<div class="chart-empty">داده‌ای موجود نیست</div>';
-  // sort by p50 RPM descending
-  var sorted=groups.slice().sort(function(a,b){return(b.p50||0)-(a.p50||0);});
-  var rows=sorted.map(function(g){
-    return'<tr>'+
-      '<td class="grp-td">'+esc(g.name)+'</td>'+
-      '<td class="val-td-c">'+toFa(g.cnt)+'</td>'+
-      '<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td>'+
-      '<td class="val-td">'+fmtRpm(g.avg)+'</td>'+
-      '<td class="spark-td">'+miniSparkline(g.monthly,88,26)+'</td>'+
-    '</tr>';
-  }).join('');
-  var totalRow='<tr class="grp-total-row">'+
-    '<td class="grp-td">RPM کل سایت</td>'+
-    '<td class="val-td-c"><strong>'+(siteTotals?toFa(siteTotals.totalCnt):'—')+'</strong></td>'+
-    '<td class="val-td"><strong>'+fmtRpm(siteTotals?siteTotals.totalP50:null)+'</strong></td>'+
-    '<td class="val-td">'+fmtRpm(siteTotals?siteTotals.totalAvg:null)+'</td>'+
-    '<td class="spark-td"></td>'+
-  '</tr>';
-  return'<table class="grp-tbl"><thead><tr>'+
-    '<th>گروه</th><th>تعداد</th><th>p50 RPM</th><th>میانگین</th><th>ترند</th>'+
-    '</tr></thead><tbody>'+rows+totalRow+'</tbody></table>';
-}
-
-function buildCmpTable(pubsData){
-  var keyMap={};
-  pubsData.forEach(function(p){p.groups.forEach(function(g){if(!keyMap[g.key])keyMap[g.key]=g.name;});});
-  // sort keys by max avg p50 across publishers descending
-  var keys=Object.keys(keyMap).sort(function(a,b){
-    var aV=Math.max.apply(null,pubsData.map(function(p){var g=p.groups.find(function(x){return x.key===a;});return g?(g.p50||0):0;}));
-    var bV=Math.max.apply(null,pubsData.map(function(p){var g=p.groups.find(function(x){return x.key===b;});return g?(g.p50||0):0;}));
-    return bV-aV;
-  });
-  var np=pubsData.length;
-  var pubLegend='<div class="cmp-legend">'+pubsData.map(function(p,i){
-    return'<span class="cmp-legend-dot" style="background:'+PUB_COLORS[i]+'"></span><span class="cmp-legend-lbl">'+esc(p.name.split(' ')[0])+'</span>';
-  }).join('')+'</div>';
-  var pubSubHdrs=pubsData.map(function(p,i){
-    return'<th class="pub-sub-hdr"><span class="cmp-legend-dot" style="background:'+PUB_COLORS[i]+'"></span>'+esc(p.name.split(' ')[0])+'</th>';
-  }).join('');
-  var hdr1='<th rowspan="2" class="grp-td-hdr">گروه جایگاه</th>'+
-    '<th colspan="'+np+'" class="metric-hdr">میانگین RPM</th>'+
-    '<th colspan="'+np+'" class="metric-hdr">p50 RPM</th>'+
-    '<th rowspan="2" class="metric-hdr" style="min-width:110px">ترند (همه ناشران)</th>';
-  var rows=keys.map(function(k){
-    var avgCells=pubsData.map(function(pub){
-      var g=pub.groups.find(function(x){return x.key===k;});
-      return g?'<td class="val-td">'+fmtRpm(g.avg)+'</td>':'<td class="na-td">—</td>';
-    }).join('');
-    var p50Cells=pubsData.map(function(pub){
-      var g=pub.groups.find(function(x){return x.key===k;});
-      return g?'<td class="val-td"><strong>'+fmtRpm(g.p50)+'</strong></td>':'<td class="na-td">—</td>';
-    }).join('');
-    var pubsMonthly=pubsData.map(function(pub){
-      var g=pub.groups.find(function(x){return x.key===k;});
-      return g?g.monthly:null;
-    });
-    var trendCell='<td class="spark-td">'+multiSparkline(pubsMonthly,110,28)+'</td>';
-    return'<tr><td class="grp-td">'+esc(keyMap[k])+'</td>'+avgCells+p50Cells+trendCell+'</tr>';
-  }).join('');
-  return pubLegend+'<div style="overflow-x:auto"><table class="cmp-tbl">'+
-    '<thead><tr>'+hdr1+'</tr><tr>'+pubSubHdrs+pubSubHdrs+'</tr></thead>'+
-    '<tbody>'+rows+'</tbody></table></div>';
-}
-
-function buildDescTable(pubsData){
-  var fromISO=filterFromISO,toISO=filterToISO,df=cmpDescFilter;
-  if(pubsData.length===1){
-    var stats=computePosStatsByDesc(pubsData[0].positions,fromISO,toISO,df);
-    if(!stats.length)return'<div class="chart-empty">جایگاهی یافت نشد'+(df?' با این فیلتر':'')+'</div>';
-    var rows=stats.map(function(s){
-      return'<tr>'+
-        '<td class="grp-sub-td">'+esc(s.groupName)+'</td>'+
-        '<td class="pos-desc-td">'+esc(s.desc)+'</td>'+
-        '<td class="val-td"><strong>'+fmtRpm(s.p50)+'</strong></td>'+
-        '<td class="val-td">'+fmtRpm(s.avg)+'</td>'+
-        '<td class="spark-td">'+miniSparkline(s.monthly,88,28)+'</td>'+
-      '</tr>';
-    }).join('');
-    return'<table class="cmp-tbl"><thead><tr>'+
-      '<th>گروه</th><th>نام جایگاه</th><th>p50 RPM</th><th>میانگین</th><th>ترند</th>'+
-      '</tr></thead><tbody>'+rows+'</tbody></table>';
-  }
-  // multi-publisher: collect all unique descs
-  var allDescMap={};
-  pubsData.forEach(function(pub){
-    computePosStatsByDesc(pub.positions,fromISO,toISO,df).forEach(function(s){
-      if(!allDescMap[s.desc])allDescMap[s.desc]={desc:s.desc,groupName:s.groupName,pubStats:{}};
-      allDescMap[s.desc].pubStats[pub.pubId]={p50:s.p50,avg:s.avg,monthly:s.monthly};
-    });
-  });
-  var descs=Object.values(allDescMap).sort(function(a,b){return a.desc.localeCompare(b.desc,'fa');});
-  if(!descs.length)return'<div class="chart-empty">جایگاهی یافت نشد'+(df?' با این فیلتر':'')+'</div>';
-  var np=pubsData.length;
-  var pubSubHdrs=pubsData.map(function(p){
-    return'<th class="pub-sub-hdr">'+esc(p.name.split(' ')[0])+'</th>';
-  }).join('');
-  var hdr1='<th rowspan="2" class="grp-td-hdr">گروه</th>'+
-    '<th rowspan="2" class="grp-td-hdr" style="min-width:160px">نام جایگاه</th>'+
-    '<th colspan="'+np+'" class="metric-hdr">p50 RPM</th>'+
-    '<th colspan="'+np+'" class="metric-hdr">ترند</th>';
-  var rows=descs.map(function(item){
-    var p50Cells=pubsData.map(function(pub){
-      var s=item.pubStats[pub.pubId];
-      return s?'<td class="val-td"><strong>'+fmtRpm(s.p50)+'</strong></td>':'<td class="na-td">—</td>';
-    }).join('');
-    var trendCells=pubsData.map(function(pub){
-      var s=item.pubStats[pub.pubId];
-      return s?'<td class="spark-td">'+miniSparkline(s.monthly,88,28)+'</td>':'<td class="na-td">—</td>';
-    }).join('');
-    return'<tr>'+
-      '<td class="grp-sub-td">'+esc(item.groupName)+'</td>'+
-      '<td class="pos-desc-td">'+esc(item.desc)+'</td>'+
-      p50Cells+trendCells+
-    '</tr>';
-  }).join('');
-  return'<div style="overflow-x:auto"><table class="cmp-tbl">'+
-    '<thead><tr>'+hdr1+'</tr><tr>'+pubSubHdrs+pubSubHdrs+'</tr></thead>'+
-    '<tbody>'+rows+'</tbody></table></div>';
 }
 
 // ── SVG charts (rebuilt from scratch) ─────────────────────────
@@ -637,7 +878,7 @@ function buildFilterBar(){
 function wireFilterBar(){
   wireDRP('fbar',filterFromISO,filterToISO,function(f,t){
     filterFromISO=f||dataMinISO;filterToISO=t||dataMaxISO;
-    rerenderCharts();refreshCmpTab();
+    rerenderCharts();refreshCmpSection();
   });
   var togM=document.getElementById('tog-monthly'),togD=document.getElementById('tog-daily');
   if(togM)togM.addEventListener('click',function(){chartMode='monthly';togM.classList.add('active');togD.classList.remove('active');rerenderCharts();});
@@ -770,138 +1011,40 @@ function render(d){
     '<div><div class="sec-lbl">هزینه تبلیغات</div><div class="chart-section" id="chart-adv">'+makeLineSvg(pts,600,160,{pL:72,pR:16,pT:12,pB:38},'totalAdv')+'</div></div>'+
     '<div><div class="sec-lbl">بازدید صفحه (PV)</div><div class="chart-section" id="chart-pv">'+makeLineSvg(pts,600,160,{pL:72,pR:16,pT:12,pB:38},'avgPv')+'</div></div>'+
   '</div>';
-  html+='</div>';  // close .main
-  // Comparison section (directly after main, no tab wrapper)
-  html+='<div id="cmp-section"><div class="cmp-panel">';
-  html+='<p class="sec-lbl">مقایسه جایگاه‌ها</p>';
-  // Publisher row
-  html+='<div class="cmp-pub-row">'+
-    '<div class="cmp-pub-chips" id="cmp-chips"></div>'+
-    '<div style="position:relative">'+
-      '<input class="cmp-inp" id="cmp-inp" type="text" placeholder="افزودن ناشر (نام یا publisher_id)..." autocomplete="off">'+
-      '<div class="cmp-dd" id="cmp-dd"></div>'+
-    '</div>'+
-    '<span class="cmp-hint" id="cmp-hint">یک ناشر دیگر اضافه کنید تا مقایسه شروع شود</span>'+
+  // Entry card (inside .main, before closing </div>)
+  html += '<div class="cmp-entry-card" id="cmp-toggle">'+
+    '<div class="cmp-entry-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="18" rx="1.5"/><rect x="10" y="8" width="7" height="13" rx="1.5"/><rect x="18" y="5" width="4" height="16" rx="1.5"/></svg></div>'+
+    '<div class="cmp-entry-body"><div class="cmp-entry-title">مقایسه ناشران</div><div class="cmp-entry-sub">مقایسه RPM به تفکیک پوزیشن در بین ناشران</div></div>'+
+    '<svg class="cmp-entry-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8l5 5 5-5"/></svg>'+
   '</div>';
-  // Controls: mode switcher
-  html+='<div class="cmp-controls">'+
-    '<div class="cmp-mode-sw">'+
-      '<button class="cmp-mode-btn'+(cmpMode==='group'?' active':'')+'" id="cmp-btn-group">گروه‌بندی</button>'+
-      '<button class="cmp-mode-btn'+(cmpMode==='desc'?' active':'')+'" id="cmp-btn-desc">جایگاه‌ها</button>'+
-    '</div>'+
+  html += '</div>';  // close .main
+  // Comparison section (hidden initially)
+  html += '<div id="cmp-section" class="cmp-section" style="display:none">';
+  html += '<div class="cmp-panel">';
+  html += '<div class="cmp-panel-hdr"><span class="sec-lbl" style="margin:0">مقایسه ناشران</span><div class="cmp-panel-hdr-right">'+buildDRP('cmp')+'<button class="cmp-close-btn icon-btn" id="cmp-close">✕</button></div></div>';
+  html += '<div class="cmp-add-area"><div class="cmp-pub-chips" id="cmp-chips"></div>'+
+    '<button class="cmp-add-btn" id="cmp-add-btn">+ افزودن ناشر</button>'+
+    '<div class="cmp-search-row" id="cmp-search-row" style="display:none"><input class="cmp-inp" id="cmp-inp" type="text" placeholder="جستجوی ناشر (نام یا شناسه)..." autocomplete="off"><div class="cmp-dd" id="cmp-dd"></div></div>'+
   '</div>';
-  // Desc filter bar (mode 2)
-  html+='<div class="cmp-desc-bar" id="cmp-desc-bar" style="display:'+(cmpMode==='desc'?'flex':'none')+'">'+
+  html += '<div class="cmp-controls"><div class="cmp-mode-sw">'+
+    '<button class="cmp-mode-btn'+(cmpMode==='group'?' active':'')+'" id="cmp-btn-group">گروه‌بندی</button>'+
+    '<button class="cmp-mode-btn'+(cmpMode==='desc'?' active':'')+'" id="cmp-btn-desc">جایگاه‌ها</button>'+
+  '</div></div>';
+  html += '<div class="cmp-desc-bar" id="cmp-desc-bar" style="display:'+(cmpMode==='desc'?'':'none')+'">'+
     '<input class="cmp-desc-inp" id="cmp-desc-inp" type="text" placeholder="فیلتر نام جایگاه..." value="'+esc(cmpDescFilter)+'">'+
   '</div>';
-  html+='<div id="cmp-table-wrap"></div>';
-  html+='</div></div>';
+  html += '<div class="cmp-empty-state" id="cmp-empty"><div class="cmp-empty-icon">📊</div><div class="cmp-empty-title">ناشری برای مقایسه انتخاب نشده</div><div class="cmp-empty-sub">با کلیک روی «+ افزودن ناشر» شروع کنید — حداکثر ۳ ناشر</div></div>';
+  html += '<div id="cmp-table-wrap"></div>';
+  html += '<div id="cmp-trend-panel" style="display:none"><div class="cmp-trend-hdr"><span id="cmp-trend-title" class="sec-lbl" style="margin:0"></span><button class="cmp-close-btn icon-btn" id="cmp-trend-close">✕</button></div><div id="cmp-trend-chart"></div></div>';
+  html += '</div></div>';  // close cmp-panel, cmp-section
   root.innerHTML=html;
   wireFilterBar();
   initTooltips();
-  wireCmpTab();
+  wireCmpSection();
   if(!cmpPubs.length&&pubData&&d){
     cmpPubs=[{pubId:d.appId,name:d.publisherName||d.appId,positions:pubData.positions}];
-    refreshCmpTab();
   }
-}
-
-// ── Comparison tab ──────────────────────────────────────────────
-function wireCmpTab(){
-  var inp=document.getElementById('cmp-inp');
-  var dd=document.getElementById('cmp-dd');
-  if(!inp||!dd)return;
-  // Publisher search
-  function getSugs(q){
-    if(!allPubData||!q||q.length<2)return[];
-    var ql=q.toLowerCase();var res=[];
-    Object.keys(allPubData).forEach(function(pubId){
-      if(cmpPubs.find(function(p){return p.pubId===pubId;}))return;
-      var pub=allPubData[pubId];
-      if((pub.publisher_name||'').toLowerCase().indexOf(ql)>=0||pubId.toLowerCase().indexOf(ql)>=0)
-        res.push({pubId:pubId,name:pub.publisher_name||pubId});
-    });
-    return res.slice(0,8);
-  }
-  function renderDD(q){
-    var items=getSugs(q);
-    if(!items.length){dd.style.display='none';return;}
-    dd.innerHTML=items.map(function(it){
-      return'<div class="cmp-dd-item" data-pubid="'+it.pubId+'" data-name="'+esc(it.name)+'">'+
-        '<span class="cmp-dd-name">'+esc(it.name)+'</span></div>';
-    }).join('');
-    dd.querySelectorAll('.cmp-dd-item').forEach(function(item){
-      item.addEventListener('mousedown',function(e){
-        e.preventDefault();
-        var pubId=item.getAttribute('data-pubid');
-        var name=item.getAttribute('data-name');
-        var pub=allPubData[pubId];
-        if(pub&&cmpPubs.length<4&&!cmpPubs.find(function(p){return p.pubId===pubId;})){
-          cmpPubs.push({pubId:pubId,name:name,positions:pub.positions});
-        }
-        inp.value='';dd.style.display='none';
-        refreshCmpTab();
-      });
-    });
-    dd.style.display='block';
-  }
-  inp.addEventListener('input',function(){renderDD(inp.value);});
-  inp.addEventListener('focus',function(){if(inp.value)renderDD(inp.value);});
-  inp.addEventListener('blur',function(){setTimeout(function(){if(dd)dd.style.display='none';},160);});
-  // Mode switcher
-  var btnGrp=document.getElementById('cmp-btn-group');
-  var btnDesc=document.getElementById('cmp-btn-desc');
-  var descBar=document.getElementById('cmp-desc-bar');
-  if(btnGrp)btnGrp.addEventListener('click',function(){
-    cmpMode='group';btnGrp.classList.add('active');btnDesc.classList.remove('active');
-    if(descBar)descBar.style.display='none';
-    refreshCmpTab();
-  });
-  if(btnDesc)btnDesc.addEventListener('click',function(){
-    cmpMode='desc';btnDesc.classList.add('active');btnGrp.classList.remove('active');
-    if(descBar)descBar.style.display='flex';
-    refreshCmpTab();
-  });
-  // Desc filter
-  var descInp=document.getElementById('cmp-desc-inp');
-  if(descInp)descInp.addEventListener('input',function(){cmpDescFilter=descInp.value;refreshCmpTab();});
-}
-
-function refreshCmpTab(){
-  var chipsEl=document.getElementById('cmp-chips');
-  var hintEl=document.getElementById('cmp-hint');
-  var tableEl=document.getElementById('cmp-table-wrap');
-  if(!chipsEl)return;
-  chipsEl.innerHTML=cmpPubs.map(function(p,i){
-    return'<div class="cmp-chip'+(i===0?' own':'')+'">'+
-      '<span>'+esc(p.name)+'</span>'+
-      (i>0?'<button class="cmp-chip-x" data-pubid="'+p.pubId+'">×</button>':'')+
-    '</div>';
-  }).join('');
-  chipsEl.querySelectorAll('.cmp-chip-x').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var id=btn.getAttribute('data-pubid');
-      cmpPubs=cmpPubs.filter(function(p){return p.pubId!==id;});
-      refreshCmpTab();
-    });
-  });
-  if(hintEl)hintEl.textContent=cmpPubs.length>=2?
-    toFa(cmpPubs.length)+' ناشر انتخاب شده — حداکثر ۴ ناشر':
-    'یک ناشر دیگر اضافه کنید تا مقایسه شروع شود';
-  if(!tableEl)return;
-  if(!cmpPubs.length){tableEl.innerHTML='';return;}
-  if(cmpMode==='group'){
-    if(cmpPubs.length>=2){
-      var pubsData=cmpPubs.map(function(p){var r=computeGroupStats(p.positions,filterFromISO,filterToISO);return{name:p.name,pubId:p.pubId,groups:r.groups};});
-      tableEl.innerHTML=buildCmpTable(pubsData);
-    }else{
-      var statsResult=computeGroupStats(cmpPubs[0].positions,filterFromISO,filterToISO);
-      tableEl.innerHTML='<div class="sec-lbl" style="margin:0 0 16px">'+esc(cmpPubs[0].name)+'</div>'+buildGroupTable(statsResult);
-    }
-  }else{
-    var pubsData=cmpPubs.map(function(p){return{name:p.name,pubId:p.pubId,positions:p.positions};});
-    tableEl.innerHTML=buildDescTable(pubsData);
-  }
+  refreshCmpSection();
 }
 
 // ── Bootstrap ──────────────────────────────────────────────────
