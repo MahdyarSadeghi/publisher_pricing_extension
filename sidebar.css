@@ -195,31 +195,22 @@ header {
 }
 
 .slot-col {
-  width: 28px; height: 48px; overflow: hidden; position: relative;
+  width: 34px; height: 48px; overflow: hidden; position: relative;
 }
 
-.slot-reel {
-  display: flex; flex-direction: column;
-  font-size: 44px; font-weight: 700;
-  font-family: 'Vazirmatn', monospace;
-  line-height: 48px; letter-spacing: -.03em;
-  color: var(--text);
-  writing-mode: vertical-lr;
-  text-orientation: mixed;
-}
-
-/* Each reel character is on its own line, written horizontally */
 .slot-reel {
   display: block;
-  width: 28px;
+  width: 34px;
 }
 
-/* Override: write digits as individual spans */
 .slot-reel span {
   display: block;
-  width: 28px; height: 48px;
+  width: 34px; height: 48px;
   line-height: 48px;
   text-align: center;
+  font-size: 36px; font-weight: 700;
+  font-family: 'Vazirmatn', monospace;
+  color: var(--text);
 }
 
 .slot-reel-0 { animation: reel 5s steps(10, end) infinite; }

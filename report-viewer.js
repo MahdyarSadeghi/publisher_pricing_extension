@@ -308,6 +308,12 @@ function buildMultiLineSvg(series,W,H){
     var serVals=series.map(function(s,si){return{rpm:byDateArr[si][date]};});
     return{date:date,i:i,x:x,serVals:serVals};
   });
+  // Combined p50 + mean across all non-excluded points
+  var allIncluded=[];
+  series.forEach(function(s,si){allDates.forEach(function(d){if(!cmpExcludedDates.has(d)&&byDateArr[si][d]!=null)allIncluded.push(byDateArr[si][d]);});});
+  var combinedMean=allIncluded.length?allIncluded.reduce(function(s,v){return s+v;},0)/allIncluded.length:null;
+  var sortedAll=allIncluded.slice().sort(function(a,b){return a-b;});
+  var combinedP50=sortedAll.length?sortedAll[Math.floor(sortedAll.length*0.5)]:null;
   cmpTrendStore={dateCoords:dateCoords,series:series,pT:pT,cH:cH,W:W,H:H};
   // Grid + Y labels
   var grid='',yLbls='';
@@ -362,12 +368,24 @@ function buildMultiLineSvg(series,W,H){
     var rw=i===0?colW/2+xPad:(i===n-1?colW/2+xPad:colW);
     hits+='<rect class="cm-hr" data-i="'+i+'" x="'+rx.toFixed(1)+'" y="'+pT+'" width="'+rw.toFixed(1)+'" height="'+cH+'" fill="transparent" style="cursor:pointer"/>';
   });
+  // Reference lines: combined P50 (yellow) and mean (blue)
+  var refLines='';
+  if(combinedP50!=null&&combinedP50<=yMax){
+    var p50Y=yFor(combinedP50);
+    refLines+='<line x1="'+pL+'" y1="'+p50Y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+p50Y.toFixed(1)+'" stroke="#FED049" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.75"/>';
+    refLines+='<text x="'+(W-pR+4)+'" y="'+(p50Y+4).toFixed(1)+'" text-anchor="start" font-size="9" font-weight="600" fill="#FED049" fill-opacity="0.9">P50</text>';
+  }
+  if(combinedMean!=null&&combinedMean<=yMax){
+    var meanY=yFor(combinedMean);
+    refLines+='<line x1="'+pL+'" y1="'+meanY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+meanY.toFixed(1)+'" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.75"/>';
+    refLines+='<text x="'+(W-pR+4)+'" y="'+(meanY+4).toFixed(1)+'" text-anchor="start" font-size="9" font-weight="600" fill="#60a5fa" fill-opacity="0.9">میانگین</text>';
+  }
   var cLine='<line class="cm-cline" x1="'+xS+'" y1="'+(pT-4)+'" x2="'+xS+'" y2="'+(pT+cH+4)+'" stroke="currentColor" stroke-opacity="0.25" stroke-width="1" stroke-dasharray="3,2" style="display:none"/>';
   var cid='cm'+Math.random().toString(36).slice(2,8);
   cmpTrendStore.cid=cid;
-  return'<div class="chart-wrap cmp-chart-wrap" data-cid="'+cid+'" style="position:relative">'+
-    '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'+
-    grid+lines+exclM+dots+yLbls+xLbls+cLine+hits+
+  return'<div class="chart-wrap cmp-chart-wrap" data-cid="'+cid+'" style="position:relative;overflow:visible">'+
+    '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" style="width:100%;height:auto;display:block;overflow:visible" xmlns="http://www.w3.org/2000/svg">'+
+    grid+refLines+lines+exclM+dots+yLbls+xLbls+cLine+hits+
     '</svg>'+
     '<div class="cmp-tt" id="cmtt-'+cid+'"></div>'+
   '</div>';
@@ -407,8 +425,8 @@ function initCmpTrend(){
       if(tt)tt.style.display='none';
       if(cLine)cLine.style.display='none';
     });
-    rect.addEventListener('click',function(e){
-      e.stopPropagation();
+    rect.addEventListener('contextmenu',function(e){
+      e.preventDefault();e.stopPropagation();
       var i=+rect.getAttribute('data-i');
       var dc=store.dateCoords[i];if(!dc)return;
       if(cmpExcludedDates.has(dc.date)){cmpExcludedDates.delete(dc.date);}
@@ -520,14 +538,14 @@ function renderCmpTrend(key,label,mode){
     return'<span><span class="cmp2-dot-sm" style="background:'+s.color+'"></span>'+esc(s.name)+'</span>';
   }).join('')+'</div>';
   var exclBar=cmpExcludedDates.size>0?
-    '<div class="cmp-excl-bar"><button class="cmp-excl-reset" id="cmp-excl-reset">↺ پاک کردن استثناءها ('+toFa(cmpExcludedDates.size)+')</button><span class="cmp-excl-hint">کلیک روی نقطه = حذف از نمودار</span></div>':
-    '<div class="cmp-excl-bar"><span class="cmp-excl-hint">کلیک روی نقطه = حذف از نمودار برای حذف اوتلایر</span></div>';
+    '<div class="cmp-excl-bar"><button class="cmp-excl-reset" id="cmp-excl-reset">↺ پاک کردن استثناءها ('+toFa(cmpExcludedDates.size)+')</button><span class="cmp-excl-hint">کلیک راست روی نقطه = حذف/اضافه کردن دیتاپوینت</span></div>':
+    '<div class="cmp-excl-bar"><span class="cmp-excl-hint">کلیک راست روی نقطه = حذف دیتاپوینت اوتلایر</span></div>';
   var titleEl=document.getElementById('cmp-trend-title');
   var chartEl=document.getElementById('cmp-trend-chart');
   var panel=document.getElementById('cmp-trend-panel');
   if(titleEl)titleEl.textContent='ترند: '+label;
   if(chartEl){
-    chartEl.innerHTML=toggleHtml+legendHtml+buildMultiLineSvg(series,1200,300)+exclBar;
+    chartEl.innerHTML=toggleHtml+legendHtml+buildMultiLineSvg(series,1200,360)+exclBar;
     var tvDaily=document.getElementById('cmp-tv-daily');
     var tvMonthly=document.getElementById('cmp-tv-monthly');
     if(tvDaily)tvDaily.addEventListener('click',function(){cmpTrendChartMode='daily';cmpExcludedDates.clear();renderCmpTrend(key,label,mode);});
