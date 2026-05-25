@@ -122,6 +122,7 @@
       }
       btn.disabled = false;
       if (!allData[appId]) { showNoData(appId); return; }
+      setDataStatus('','');
       runAnalysis(allData[appId], range);
 
     } else {
@@ -308,7 +309,7 @@
     var dot=$("status-dot"),txt=$("status-text");
     if(scanResult.appId){
       dot.className="status-dot";
-      txt.textContent="اسکریپت یکتانت شناسایی شد · "+scanResult.appId;
+      txt.textContent="اسکریپت یکتانت شناسایی شد";
     } else {
       dot.className="status-dot error";
       txt.textContent="اسکریپت یکتانت یافت نشد";
@@ -319,7 +320,7 @@
   function updateAnalyzeBtn(){
     var canAnalyze = !!(scanResult && scanResult.appId);
     $('analyze-btn').disabled = !canAnalyze;
-    $('analyze-btn').textContent = (scanResult && !scanResult.appId) ? 'App ID یافت نشد' : 'آنالیز کن';
+    $('analyze-btn').textContent = (scanResult && !scanResult.appId) ? 'اسکریپت یکتانت یافت نشد' : 'آنالیز کن';
   }
 
   // ── Analysis ──────────────────────────────────────────────────
@@ -333,6 +334,7 @@
 
     setTimeout(function(){
       try{
+        setDataStatus('','');  // clear any "در حال بارگذاری" status
         var matched=[],unmatched=[];
 
         allPositionIds.forEach(function(posId){
@@ -404,7 +406,7 @@
         console.error("Analysis error:",e);
         showNoData(appId);
       }
-    },80);
+    },4000);
   }
 
   // ── Render helpers ────────────────────────────────────────────
@@ -426,22 +428,50 @@
     $("date-section").classList.remove("hidden"); // keep date section visible but show error below
     $("error-state").classList.remove("hidden");
     $("analyze-btn").disabled=true;
-    $("analyze-btn").textContent="App ID یافت نشد";
+    $("analyze-btn").textContent="اسکریپت یکتانت یافت نشد";
   }
 
   function showNoData(appId){
     hideAll();
     $("date-section").classList.remove("hidden");
     $("nodata-state").classList.remove("hidden");
-    $("nodata-body").textContent='هیچ داده‌ای برای App ID "'+appId+'" در این بازه زمانی یافت نشد.';
+    $("nodata-body").textContent='داده‌ای برای این ناشر در بازه زمانی انتخاب‌شده یافت نشد.';
   }
 
   function showLoading(posCount){
     hideAll();
     $("loading-section").classList.remove("hidden");
-    // Update step values
-    $("step-val-0").textContent=toFa(Math.round((new Date(getDateRange().to)-new Date(getDateRange().from))/(86400000)))+" روز";
-    $("step-val-1").textContent=toFa(posCount)+" جایگاه";
+    var days=toFa(Math.round((new Date(getDateRange().to)-new Date(getDateRange().from))/(86400000)));
+    // Reset all steps to pending
+    [0,1,2,3].forEach(function(i){
+      var step=document.querySelector('[data-step="'+i+'"]');
+      var dot=step&&step.querySelector('.step-dot');
+      if(step){step.className='compute-step'+(i===0?' active':' pending');}
+      if(dot){dot.className='step-dot'+(i===0?' active':' pending');}
+    });
+    $("step-val-0").textContent='';
+    $("step-val-1").textContent='';
+    // Animate steps over 4 seconds
+    setTimeout(function(){
+      var s=document.querySelector('[data-step="0"]'),d=s&&s.querySelector('.step-dot');
+      if(s)s.className='compute-step done';if(d)d.className='step-dot done';
+      $("step-val-0").textContent=days+' روز';
+      var s1=document.querySelector('[data-step="1"]'),d1=s1&&s1.querySelector('.step-dot');
+      if(s1)s1.className='compute-step active';if(d1)d1.className='step-dot active';
+    },900);
+    setTimeout(function(){
+      var s=document.querySelector('[data-step="1"]'),d=s&&s.querySelector('.step-dot');
+      if(s)s.className='compute-step done';if(d)d.className='step-dot done';
+      $("step-val-1").textContent=toFa(posCount)+' جایگاه';
+      var s2=document.querySelector('[data-step="2"]'),d2=s2&&s2.querySelector('.step-dot');
+      if(s2)s2.className='compute-step active';if(d2)d2.className='step-dot active';
+    },1800);
+    setTimeout(function(){
+      var s=document.querySelector('[data-step="2"]'),d=s&&s.querySelector('.step-dot');
+      if(s)s.className='compute-step done';if(d)d.className='step-dot done';
+      var s3=document.querySelector('[data-step="3"]'),d3=s3&&s3.querySelector('.step-dot');
+      if(s3)s3.className='compute-step active';if(d3)d3.className='step-dot active';
+    },2900);
   }
 
   function renderResults(res){
@@ -449,7 +479,12 @@
     $("date-section").classList.remove("hidden");
     $("results-section").classList.remove("hidden");
     $("cta-footer").classList.remove("hidden");
-
+    setDataStatus('','');
+    // Show publisher name in status strip
+    if(res.publisherName){
+      $("status-dot").className="status-dot";
+      $("status-text").textContent=res.publisherName;
+    }
     // Hero
     var rpm=res.totalRpm;
     $("hero-rpm").textContent=rpm!==null?fmtRpm(rpm):"—";
@@ -481,17 +516,22 @@
     var searchInp=document.getElementById('pos-search-inp');
     if(searchInp){
       searchInp.addEventListener('input',function(){
-        var q=searchInp.value.toLowerCase();
+        var q=searchInp.value.trim();
+        var ql=q.toLowerCase();
+        var firstMatch=null;
         document.querySelectorAll('#positions-list [data-posid]').forEach(function(card){
           var name=(card.querySelector('.pos-name')||{textContent:''}).textContent.toLowerCase();
           var id=(card.getAttribute('data-posid')||'').toLowerCase();
-          card.style.display=(!q||name.indexOf(q)>=0||id.indexOf(q)>=0)?'':'none';
+          var vis=!q||name.indexOf(ql)>=0||id.indexOf(ql)>=0;
+          card.style.display=vis?'':'none';
+          if(vis&&!firstMatch)firstMatch=card;
         });
-        // hide empty section headers
         document.querySelectorAll('.pos-block-top90,.pos-block-bottom-label').forEach(function(block){
           var visible=block.querySelectorAll('[data-posid]:not([style*="display: none"]):not([style*="display:none"])');
           block.style.display=visible.length?'':'none';
         });
+        // Scroll to first match when searching by ID
+        if(firstMatch&&q)firstMatch.scrollIntoView({behavior:'smooth',block:'nearest'});
       });
     }
 

@@ -371,7 +371,7 @@ function buildDescTable(pubsData){
   if(!descs.length)return'<div class="chart-empty">جایگاهی یافت نشد'+(df?' با این فیلتر':'')+'</div>';
   var np=pubsData.length;
   var pubSubHdrs=pubsData.map(function(p){
-    return'<th class="pub-sub-hdr">'+esc(p.name.split(' ')[0])+'<br><span class="pub-col-id">'+esc(p.pubId)+'</span></th>';
+    return'<th class="pub-sub-hdr">'+esc(p.name.split(' ')[0])+'</th>';
   }).join('');
   var hdr1='<th rowspan="2" class="grp-td-hdr">گروه</th>'+
     '<th rowspan="2" class="grp-td-hdr" style="min-width:160px">نام جایگاه</th>'+
@@ -553,7 +553,8 @@ function drpRenderGrid(id){
   document.getElementById('drp-grid-'+id).innerHTML=html;
   document.getElementById('drp-hint-'+id).textContent=st.pickStep===1?'روز پایان بازه را انتخاب کنید':'روز شروع بازه را انتخاب کنید';
   document.getElementById('drp-grid-'+id).querySelectorAll('.drp-d-btn').forEach(function(btn){
-    btn.addEventListener('click',function(){
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
       var iso=btn.getAttribute('data-iso');
       if(st.pickStep===0){
         st.fromISO=iso;st.toISO=null;st.pickStep=1;
@@ -761,7 +762,7 @@ function render(d){
   var bd=filteredPubDaily(),pts=getPubPts();
   var html='';
   // Header
-  html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">ن</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.appId||'')+'&nbsp;&middot;&nbsp;'+esc(d.pageTitle||'')+'</div></div></div></div>';
+  html+='<div class="hdr"><div class="hdr-brand"><div class="y-logo">ن</div><div><div class="hdr-name">'+esc(d.publisherName||'گزارش ناشر')+'</div><div class="hdr-meta">'+esc(d.pageTitle||'')+'</div></div></div></div>';
   html+=buildFilterBar();
   html+='<div class="main">';
   html+='<div class="sec-lbl">ترند RPM</div><div class="chart-section" id="chart-rpm">'+makeLineSvg(pts,1200,200,{pL:68,pR:20,pT:14,pB:40},'rpm')+'</div>';
@@ -827,8 +828,7 @@ function wireCmpTab(){
     if(!items.length){dd.style.display='none';return;}
     dd.innerHTML=items.map(function(it){
       return'<div class="cmp-dd-item" data-pubid="'+it.pubId+'" data-name="'+esc(it.name)+'">'+
-        '<span class="cmp-dd-name">'+esc(it.name)+'</span>'+
-        '<span class="cmp-dd-id">'+it.pubId+'</span></div>';
+        '<span class="cmp-dd-name">'+esc(it.name)+'</span></div>';
     }).join('');
     dd.querySelectorAll('.cmp-dd-item').forEach(function(item){
       item.addEventListener('mousedown',function(e){
@@ -875,7 +875,6 @@ function refreshCmpTab(){
   chipsEl.innerHTML=cmpPubs.map(function(p,i){
     return'<div class="cmp-chip'+(i===0?' own':'')+'">'+
       '<span>'+esc(p.name)+'</span>'+
-      '<span class="pub-col-id" style="font-size:10px;margin-right:4px;opacity:.7">'+esc(p.pubId)+'</span>'+
       (i>0?'<button class="cmp-chip-x" data-pubid="'+p.pubId+'">×</button>':'')+
     '</div>';
   }).join('');

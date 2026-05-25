@@ -30,7 +30,7 @@
     .rpm-pill { background:var(--accent); color:#1c1917; padding:8px 16px; border-radius:10px; display:flex; align-items:baseline; gap:5px; flex-shrink:0; }
     .rpm-pill-val { font-size:22px; font-weight:700; }
     .rpm-pill-lbl { font-size:10px; font-weight:500; opacity:.7; }
-    .main { padding:28px 24px 64px; }
+    .main { padding:28px 24px 16px; }
     .sec-lbl { font-size:14px; font-weight:700; letter-spacing:.04em; color:var(--text); margin-bottom:16px; margin-top:8px; display:flex; align-items:center; gap:8px; }
     .sec-lbl::before { content:''; display:block; width:3px; height:14px; background:var(--accent); border-radius:2px; }
     .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:36px; }
@@ -88,7 +88,7 @@
     .sel-sm { font-family:inherit; font-size:11px; background:var(--subtle); border:1px solid var(--border); border-radius:6px; padding:4px 6px; color:var(--text); direction:rtl; cursor:pointer; }
     .pos-filter-sel { font-family:inherit; font-size:12px; background:var(--subtle); border:1px solid var(--border); border-radius:6px; padding:2px 4px; color:var(--text); direction:rtl; width:160px; }
     .chart-section { overflow:visible; }
-    .charts-duo { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:28px; }
+    .charts-duo { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:8px; }
     .charts-duo .chart-section { margin-bottom:0; }
     /* tooltip */
     .chart-tt { position:absolute; top:6px; background:var(--ink,#1c1917); color:#fff; font-size:11px; padding:4px 9px; border-radius:6px; pointer-events:none; white-space:nowrap; display:flex; gap:6px; align-items:center; z-index:10; transform:translateX(-50%); }
@@ -139,9 +139,8 @@
     /* filter-bar sits directly below header */
     .filter-bar{top:64px!important;}
     @media(max-width:640px){.filter-bar{top:56px!important;}}
-    .cmp-section{background:var(--subtle);border-top:2px solid var(--border);}
-    /* ── Comparison panel ── */
-    .cmp-panel{padding:24px 24px 64px;}
+    .cmp-section{background:var(--subtle);border-top:2px solid var(--border);margin-top:0;}
+    .cmp-panel{padding:18px 24px 64px;}
     .cmp-pub-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;min-height:32px;}
     .cmp-chip{display:inline-flex;align-items:center;gap:6px;background:var(--subtle);border:1px solid var(--border);border-radius:20px;padding:4px 10px 4px 8px;font-size:12px;}
     .cmp-chip.own{border-color:var(--accent);background:rgba(254,208,73,0.12);}
