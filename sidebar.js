@@ -2,9 +2,14 @@
   "use strict";
 
   // ── Data source ───────────────────────────────────────────────
-  // true  → local data/publisher_data.json (no auth needed)
-  // false → live Trino query via Keycloak auth
-  var USE_LOCAL_DATA = true;
+  // 'local'  → data/publisher_data.json (no auth)
+  // 'trino'  → direct Trino via background.js (needs VPN + internal DNS + CA cert)
+  // 'api'    → internal API server (needs VPN, recommended for production)
+  var DATA_SOURCE = 'local';   // change to 'api' for production
+  var API_BASE    = 'https://publisher-pricing.yektanet.internal'; // set to your server URL
+
+  // Legacy alias kept for backward-compat in a few checks below
+  var USE_LOCAL_DATA = (DATA_SOURCE === 'local');
 
   // ── Jalali conversions ────────────────────────────────────────
   function gToJ(gy, gm, gd) {
@@ -107,7 +112,7 @@
     var range = getDateRange();
     var appId = scanResult.appId;
 
-    if (USE_LOCAL_DATA) {
+    if (DATA_SOURCE === 'local') {
       // ── Local JSON mode ────────────────────────────────────────
       setDataStatus('⏳ در حال بارگذاری داده…', '');
       var allData;
@@ -122,13 +127,14 @@
       }
       btn.disabled = false;
       if (!allData[appId]) { showNoData(appId); return; }
+      setDataStatus('', '');
       runAnalysis(allData[appId], range);
 
-    } else {
-      // ── Live Trino mode ────────────────────────────────────────
-      // 1. Auth
-      var status = await sendMsg({ type: 'GET_AUTH_STATUS' });
-      if (!status.authed) {
+    } else if (DATA_SOURCE === 'api') {
+      // ── API server mode ────────────────────────────────────────
+      // 1. Auth (same Keycloak device flow — get Bearer token)
+      var authStatus = await sendMsg({ type: 'GET_AUTH_STATUS' });
+      if (!authStatus.authed) {
         setDataStatus('⧗ در حال احراز هویت… لطفاً در مرورگر وارد شوید', '');
         var auth = await sendMsg({ type: 'START_AUTH' });
         if (auth.error) {
@@ -139,14 +145,59 @@
         setDataStatus('✓ وارد شده‌اید', 'ok');
       }
 
-      // 2. Validate appId
+      // 2. Call API server
+      if (!/^[A-Za-z0-9_.\\-]+$/.test(appId)) {
+        setDataStatus('App ID نامعتبر: ' + appId, 'err');
+        btn.disabled = false;
+        return;
+      }
+      setDataStatus('⧗ در حال دریافت داده…', '');
+      var apiResult = await sendMsg({
+        type: 'FETCH_API',
+        url:  API_BASE + '/publisher/' + encodeURIComponent(appId)
+              + '?from=' + range.from + '&to=' + range.to,
+      });
+      btn.disabled = false;
+
+      if (apiResult.error) {
+        if (apiResult.error === 'not_authed') {
+          chrome.storage.local.remove(['ynprice_token', 'ynprice_token_expiry']);
+          setDataStatus('توکن منقضی شد — دوباره تلاش کنید', 'err');
+        } else if (apiResult.status === 404) {
+          showNoData(appId);
+        } else {
+          setDataStatus('خطا: ' + apiResult.error, 'err');
+        }
+        return;
+      }
+
+      var pubData = apiResult.data;
+      if (!pubData || !pubData.positions || !Object.keys(pubData.positions).length) {
+        showNoData(appId); return;
+      }
+      setDataStatus('', '');
+      runAnalysis(pubData, range);
+
+    } else {
+      // ── Direct Trino mode ──────────────────────────────────────
+      var trinoAuthStatus = await sendMsg({ type: 'GET_AUTH_STATUS' });
+      if (!trinoAuthStatus.authed) {
+        setDataStatus('⧗ در حال احراز هویت… لطفاً در مرورگر وارد شوید', '');
+        var trinoAuth = await sendMsg({ type: 'START_AUTH' });
+        if (trinoAuth.error) {
+          setDataStatus('خطا در احراز هویت: ' + trinoAuth.error, 'err');
+          btn.disabled = false;
+          return;
+        }
+        setDataStatus('✓ وارد شده‌اید', 'ok');
+      }
+
       if (!/^[A-Za-z0-9_-]+$/.test(appId)) {
         setDataStatus('App ID نامعتبر: ' + appId, 'err');
         btn.disabled = false;
         return;
       }
 
-      // 3. Query
       setDataStatus('⧗ در حال دریافت داده از پایگاه داده…', '');
       var sql =
         "SELECT * FROM hafez.data_operation.nashereman" +
@@ -237,7 +288,7 @@
 
   // ── Auth status ───────────────────────────────────────────────
   async function checkAuthStatus() {
-    if (USE_LOCAL_DATA) {
+    if (DATA_SOURCE === 'local') {
       setDataStatus('داده محلی فعال است', 'ok');
       return;
     }
