@@ -2,3 +2,5 @@ node_modules/
 data/daily_position_details.xlsx
 data/*.xlsx
 config.js
+.claude/
+api_server/.env
