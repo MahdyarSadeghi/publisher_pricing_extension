@@ -264,28 +264,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .then(r  => sendResponse(r))
       .catch(e => sendResponse({ error: e.message }));
-    return true;
-  }
-
-  // ── API server fetch (extension → internal API → Trino) ───────
-  if (msg.type === 'FETCH_API') {
-    getStoredToken()
-      .then(token => {
-        if (!token) return Promise.resolve({ error: 'not_authed' });
-        return fetch(msg.url, {
-          method: 'GET',
-          headers: { 'Authorization': 'Bearer ' + token },
-        }).then(async resp => {
-          if (!resp.ok) {
-            let body = '';
-            try { body = (await resp.json()).detail || ''; } catch (_) {}
-            return { error: body || 'HTTP ' + resp.status, status: resp.status };
-          }
-          return { data: await resp.json() };
-        });
-      })
-      .then(r  => sendResponse(r))
-      .catch(e => sendResponse({ error: networkErrMsg(e) }));
-    return true;
+    return true; // keeps service worker alive until query completes
   }
 });
